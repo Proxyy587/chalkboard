@@ -14,14 +14,8 @@ _client = OpenRouter(api_key=os.getenv("OPENROUTER_API_KEY"))
 
 def clean_code(code: str) -> str:
     code = code.strip()
-    if code.startswith("```"):
-        code = code.split("```", 1)[1]
-    if code.startswith("```python"):
-        code = code.split("```python", 1)[1]
-    if code.startswith("python"):
-        code = code.split("python", 1)[1]
-    if code.endswith("```"):
-        code = code.rsplit("```", 1)[0]
+    code = re.sub(r"^```(?:python)?\s*\n?", "", code, flags=re.MULTILINE)
+    code = re.sub(r"\n?```\s*$", "", code)
     return code.strip()
 
 

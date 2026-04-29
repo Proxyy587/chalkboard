@@ -16,8 +16,7 @@ def merge_video_audio_captions(
     atempo = 1.0
     if audio_duration > 0 and video_duration > 0:
         ratio = audio_duration / video_duration
-        if 0.85 < ratio < 1.15:
-            atempo = ratio
+        atempo = max(0.5, min(2.0, ratio))
     audio_filter = f"atempo={atempo:.4f}" if atempo != 1.0 else "anull"
     escaped_srt = srt_path.replace("\\", "/").replace(":", "\\:")
     vf = (

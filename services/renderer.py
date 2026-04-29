@@ -6,6 +6,17 @@ import uuid
 from typing import Optional
 
 
+def find_output_video(output_dir: str, job_id: str) -> Optional[str]:
+    search_root = os.path.join(output_dir, "videos", job_id)
+    if not os.path.exists(search_root):
+        return None
+    for root, _, files in os.walk(search_root):
+        for file_name in files:
+            if file_name.endswith(".mp4") and not file_name.endswith("_final.mp4"):
+                return os.path.join(root, file_name)
+    return None
+
+
 def render_video(code: str, output_dir: str, log=print) -> tuple[Optional[str], Optional[str]]:
     log("Step 2/6: Starting Manim rendering...")
     job_id = str(uuid.uuid4())
@@ -31,7 +42,9 @@ def render_video(code: str, output_dir: str, log=print) -> tuple[Optional[str], 
             f.write(err)
         log(f"  ❌ Rendering failed. Error log saved: {err_path}")
         return None, err
-    video_path = f"{output_dir}/videos/{job_id}/480p15/{job_id}.mp4"
+    video_path = find_output_video(output_dir, job_id)
+    if not video_path:
+        return None, "Could not find rendered video file"
     log(f"  ✔️ Video will be at {video_path}")
     return video_path, None
 

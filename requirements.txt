@@ -8,4 +8,5 @@ manim
 celery 
 redis
 ffmpeg
-edge_tts
+edge-tts
+boto3

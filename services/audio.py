@@ -1,4 +1,3 @@
-import asyncio
 import os
 
 import edge_tts
@@ -34,15 +33,17 @@ async def _generate_audio_with_captions_async(script: str, output_dir: str, voic
     return audio_path, srt_path, get_media_duration(audio_path)
 
 
-def generate_audio_with_captions(
+async def generate_audio_with_captions(
     script: str,
     output_dir: str,
     voice: str = "en-US-AriaNeural",
     log=print,
 ) -> tuple[str, str, float]:
     log("Step 4/6: Generating TTS audio and SRT captions...")
-    audio_path, srt_path, audio_duration = asyncio.run(
-        _generate_audio_with_captions_async(script=script, output_dir=output_dir, voice=voice)
+    audio_path, srt_path, audio_duration = await _generate_audio_with_captions_async(
+        script=script,
+        output_dir=output_dir,
+        voice=voice,
     )
     log(f"  ✔️ Audio saved at {audio_path}")
     log(f"  ✔️ Captions saved at {srt_path}")

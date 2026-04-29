@@ -1,10 +1,12 @@
 import os
+import asyncio
 from typing import Optional
 
 from services.audio import generate_audio_with_captions
 from services.llm import generate_manim_code, generate_narration_script
 from services.merger import merge_video_audio_captions
 from services.renderer import get_media_duration, render_video
+from services.storage import upload_to_r2
 
 OUTPUT_DIR = "outputs"
 
@@ -13,7 +15,7 @@ def log(msg: str):
     print(msg, flush=True)
 
 
-def process_topic(topic: str, max_attempts: int = 4) -> Optional[str]:
+async def process_topic_async(topic: str, max_attempts: int = 4) -> Optional[str]:
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     last_error = None
     previous_code = None
@@ -44,7 +46,7 @@ def process_topic(topic: str, max_attempts: int = 4) -> Optional[str]:
         narration_script = generate_narration_script(topic, code, video_duration, output_dir=OUTPUT_DIR, log=log)
         log("\n🗣️ Narration script:")
         print(narration_script)
-        audio_path, srt_path, audio_duration = generate_audio_with_captions(
+        audio_path, srt_path, audio_duration = await generate_audio_with_captions(
             narration_script, output_dir=OUTPUT_DIR, log=log
         )
         final_video = merge_video_audio_captions(
@@ -56,8 +58,13 @@ def process_topic(topic: str, max_attempts: int = 4) -> Optional[str]:
             output_dir=OUTPUT_DIR,
             log=log,
         )
-        log(f"\n🎉 Final narrated video: {final_video}")
-        return final_video
+        video_url = upload_to_r2(final_video)
+        log(f"\n☁️ Uploaded to R2: {video_url}")
+        return video_url
     except Exception as e:
         log(f"\n⚠️ Video rendered, but narration merge failed: {e}")
         return video
+
+
+def process_topic(topic: str, max_attempts: int = 4) -> Optional[str]:
+    return asyncio.run(process_topic_async(topic, max_attempts=max_attempts))
