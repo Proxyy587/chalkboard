@@ -8,5 +8,4 @@ manim
 celery 
 redis
 ffmpeg
-cairo
-pkg-config
+edge_tts
