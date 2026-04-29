@@ -317,3 +317,25 @@ If you receive a previous failed attempt with an error:
 Output the complete fixed Python script only.
 
 """
+
+
+def build_narration_prompt(topic: str, video_duration: float, visual_beats: str) -> str:
+    target_words = int(video_duration * 140 / 60)
+    return f"""
+    Write a narration script for this STEM animation topic:
+
+            {topic}
+
+            Visual sequence from the generated Manim script (follow this order closely):
+            {visual_beats}
+
+            Rules:
+            - Target narration length: about {video_duration:.0f} seconds
+            - Speaking rate: ~140 words per minute
+            - Target words: about {target_words} words (within +/-10%)
+            - Be clear and simple. Clear and simple is more important than educational tone.
+            - One sentence should roughly map to one visual beat
+            - Refer to the exact equations/labels shown in the visual sequence
+            - No markdown, no bullet points, plain text only
+            - Do not include stage directions
+            """

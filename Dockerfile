@@ -37,5 +37,5 @@ COPY . .
 # Put venv binaries first (manim, python, etc.)
 ENV PATH="/app/.venv/bin:$PATH"
 
-# Render/VPS-friendly default. Override this in your platform settings if needed.
-CMD ["python", "models.py"]
+# API server default for cloud hosting.
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

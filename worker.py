@@ -9,13 +9,18 @@ from services.renderer import get_media_duration, render_video
 from services.storage import upload_to_r2
 
 OUTPUT_DIR = "outputs"
+DEFAULT_MODEL = "deepseek/deepseek-v3.2"
 
 
 def log(msg: str):
     print(msg, flush=True)
 
 
-async def process_topic_async(topic: str, max_attempts: int = 4) -> Optional[str]:
+async def process_topic_async(
+    topic: str,
+    model: str = DEFAULT_MODEL,
+    max_attempts: int = 4,
+) -> Optional[str]:
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     last_error = None
     previous_code = None
@@ -24,7 +29,13 @@ async def process_topic_async(topic: str, max_attempts: int = 4) -> Optional[str
 
     for attempt in range(1, max_attempts + 1):
         log(f"\n🧠 Attempt {attempt}/{max_attempts}: Generating code...")
-        code = generate_manim_code(topic, error=last_error, previous_code=previous_code, log=log)
+        code = generate_manim_code(
+            topic,
+            model=model,
+            error=last_error,
+            previous_code=previous_code,
+            log=log,
+        )
         previous_code = code
         log("\n📜 Cleaned code:")
         print(code)
@@ -43,7 +54,14 @@ async def process_topic_async(topic: str, max_attempts: int = 4) -> Optional[str
     try:
         video_duration = get_media_duration(video)
         log(f"Step 3/6: Measured video duration: {video_duration:.2f}s")
-        narration_script = generate_narration_script(topic, code, video_duration, output_dir=OUTPUT_DIR, log=log)
+        narration_script = generate_narration_script(
+            topic,
+            code,
+            video_duration,
+            model=model,
+            output_dir=OUTPUT_DIR,
+            log=log,
+        )
         log("\n🗣️ Narration script:")
         print(narration_script)
         audio_path, srt_path, audio_duration = await generate_audio_with_captions(
@@ -66,5 +84,5 @@ async def process_topic_async(topic: str, max_attempts: int = 4) -> Optional[str
         return video
 
 
-def process_topic(topic: str, max_attempts: int = 4) -> Optional[str]:
-    return asyncio.run(process_topic_async(topic, max_attempts=max_attempts))
+def process_topic(topic: str, model: str = DEFAULT_MODEL, max_attempts: int = 4) -> Optional[str]:
+    return asyncio.run(process_topic_async(topic, model=model, max_attempts=max_attempts))

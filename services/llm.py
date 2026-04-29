@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from openrouter import OpenRouter
 
 from prompt import MANIM_SYSTEM_PROMPT
-
+from prompt import build_narration_prompt
 load_dotenv()
 _client = OpenRouter(api_key=os.getenv("OPENROUTER_API_KEY"))
 
@@ -54,11 +54,11 @@ Output only raw Python code."""
     return msg
 
 
-def generate_manim_code(topic: str, error: Optional[str] = None, previous_code: Optional[str] = None, log=print) -> str:
+def generate_manim_code(topic: str, model: str, error: Optional[str] = None, previous_code: Optional[str] = None, log=print) -> str:
     log("Step 1/6: Sending prompt to LLM for Manim code generation...")
     t0 = time.time()
     response = _client.chat.send(
-        model="deepseek/deepseek-v3.2",
+        model=model,
         messages=[
             {"role": "system", "content": MANIM_SYSTEM_PROMPT},
             {"role": "user", "content": build_manim_user_message(topic, error=error, previous_code=previous_code)},
@@ -98,35 +98,23 @@ def extract_visual_beats_from_code(code: str, max_items: int = 18) -> str:
     return "\n".join(f"- {b}" for b in beats)
 
 
-def build_narration_prompt(topic: str, video_duration: float, visual_beats: str) -> str:
-    target_words = int(video_duration * 140 / 60)
-    return f"""Write a narration script for this STEM animation topic:
 
-{topic}
-
-Visual sequence from the generated Manim script (follow this order closely):
-{visual_beats}
-
-Rules:
-- Target narration length: about {video_duration:.0f} seconds
-- Speaking rate: ~140 words per minute
-- Target words: about {target_words} words (within +/-10%)
-- Clear educational tone
-- One sentence should roughly map to one visual beat
-- Refer to the exact equations/labels shown in the visual sequence
-- No markdown, no bullet points, plain text only
-- Do not include stage directions"""
-
-
-def generate_narration_script(topic: str, code: str, video_duration: float, output_dir: str, log=print) -> str:
+def generate_narration_script(
+    topic: str,
+    code: str,
+    video_duration: float,
+    output_dir: str,
+    model: str = "deepseek/deepseek-v3.2",
+    log=print,
+) -> str:
     log("Step 3/6: Generating narration script...")
     visual_beats = extract_visual_beats_from_code(code)
     response = _client.chat.send(
-        model="deepseek/deepseek-v3.2",
+        model=model,
         messages=[
             {
                 "role": "system",
-                "content": "You write concise STEM narration scripts for animations. Keep pacing natural, concept-first, and avoid filler.",
+                "content": "You write concise STEM narration scripts for animations. Keep pacing natural, concept-first, and avoid a boring filler tone.",
             },
             {"role": "user", "content": build_narration_prompt(topic, video_duration, visual_beats)},
         ],
