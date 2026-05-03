@@ -5,16 +5,27 @@ import uuid
 from collections import defaultdict, deque
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from schema.chat import ChatRequest, JobCreateResponse, JobStatusResponse
 from worker import process_topic, DEFAULT_MODEL
 
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1):\d+",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 JOBS: dict[str, dict] = {}
 CACHE: dict[str, dict] = {}
 CACHE_TTL_SECONDS = 6 * 60 * 60
 
-# Simple in-memory IP limiter: 10 requests / 10 minutes
 RATE_LIMIT_COUNT = 10
 RATE_LIMIT_WINDOW_SECONDS = 10 * 60
 REQUEST_LOG: dict[str, deque] = defaultdict(deque)

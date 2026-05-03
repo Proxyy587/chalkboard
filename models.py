@@ -2,5 +2,5 @@ from worker import process_topic
 
 
 if __name__ == "__main__":
-    topic = input("Enter your question: ")
+    topic = input("Q: ")
     process_topic(topic)
