@@ -28,7 +28,7 @@ export default function RootLayout({
       lang="en"
       className={`${geistMono.variable} ${pixelifySans.variable} dark h-full overflow-hidden antialiased`}
     >
-      <body className="h-dvh overflow-hidden bg-black font-mono text-[13px] leading-relaxed text-zinc-100">
+      <body className="h-dvh overflow-hidden bg-[var(--background)] font-mono text-[13px] leading-relaxed text-zinc-100">
         {children}
       </body>
     </html>

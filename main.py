@@ -120,3 +120,15 @@ async def get_job_status(job_id: str):
         error=job.get("error"),
         cached=job.get("cached", False),
     )
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+@app.get("/metrics")
+async def metrics():
+    return {"status": "ok"}
+
+@app.get("/metrics/upstash")
+async def upstash_metrics():
+    return {"status": "ok"}

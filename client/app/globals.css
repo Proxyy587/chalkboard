@@ -51,8 +51,11 @@
 
 :root {
   --chalk-lime: #dfff00;
+  --chalk-lime-soft: rgba(223, 255, 0, 0.08);
   --chalk-black: #000000;
-  --background: #000000;
+  --chalk-sidebar-base: #08080b;
+  --chalk-main-base: #040405;
+  --background: #020203;
   --foreground: #f4f4f5;
   --card: #0a0a0a;
   --card-foreground: #fafafa;
@@ -87,7 +90,7 @@
 }
 
 .dark {
-  --background: #000000;
+  --background: #020203;
   --foreground: #f4f4f5;
   --card: #0a0a0a;
   --card-foreground: #fafafa;
@@ -120,12 +123,31 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply text-foreground;
+    background-color: var(--background);
+    /* Primary grid + soft vignettes + diagonal micro-texture (same language, more depth) */
     background-image:
-      linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-    background-size: 48px 48px, 48px 48px;
+      radial-gradient(ellipse 100% 70% at 15% -5%, var(--chalk-lime-soft) 0%, transparent 42%),
+      radial-gradient(ellipse 80% 60% at 92% 105%, rgba(88, 100, 200, 0.06) 0%, transparent 48%),
+      radial-gradient(ellipse 50% 40% at 50% 50%, transparent 0%, rgba(0, 0, 0, 0.45) 100%),
+      linear-gradient(rgba(255, 255, 255, 0.034) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.034) 1px, transparent 1px),
+      repeating-linear-gradient(
+        -18deg,
+        transparent,
+        transparent 11px,
+        rgba(255, 255, 255, 0.018) 11px,
+        rgba(255, 255, 255, 0.018) 12px
+      );
+    background-size:
+      auto,
+      auto,
+      auto,
+      48px 48px,
+      48px 48px,
+      auto;
     background-position: center;
+    background-attachment: fixed;
   }
   html {
     @apply font-mono;
@@ -141,10 +163,53 @@
 
   .chalk-panel {
     border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(8, 8, 8, 0.92);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 22%),
+      rgba(10, 10, 12, 0.94);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      0 12px 40px rgba(0, 0, 0, 0.35);
     transition:
       border-color 0.2s ease,
       box-shadow 0.2s ease;
+  }
+
+  /* Secondary rail: sidebar — cooler, denser grid, lime edge */
+  .chalk-sidebar {
+    position: relative;
+    background-color: var(--chalk-sidebar-base);
+    background-size: auto, 20px 20px, 20px 20px;
+    box-shadow:
+      inset 1px 0 0 rgba(223, 255, 0, 0.11),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.04),
+      6px 0 32px rgba(0, 0, 0, 0.55);
+    border-right: 1px solid rgba(255, 255, 255, 0.09);
+  }
+
+  .chalk-sidebar::before {
+    content: "";
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    opacity: 0.9;
+  }
+
+  .chalk-sidebar > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Main workspace: slightly warmer lift + top glow */
+  .chalk-main-surface {
+    position: relative;
+    background-color: var(--chalk-main-base);
+    background-image:
+      radial-gradient(ellipse 85% 60% at 50% 0%, rgba(223, 255, 0, 0.055) 0%, transparent 85%),
+      linear-gradient(rgba(255, 255, 255, 0.026) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.026) 1px, transparent 1px);
+    background-size: auto, 56px 56px, 56px 56px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
   }
 
   .chalk-lime-glow {
@@ -154,6 +219,27 @@
   .lime-focus:focus-visible {
     outline: none;
     box-shadow: 0 0 0 1px var(--chalk-lime);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .chalk-sidebar {
+    animation: chalk-rail-pulse 7s ease-in-out infinite alternate;
+  }
+
+  @keyframes chalk-rail-pulse {
+    from {
+      box-shadow:
+        inset 1px 0 0 rgba(223, 255, 0, 0.08),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.04),
+        6px 0 28px rgba(0, 0, 0, 0.5);
+    }
+    to {
+      box-shadow:
+        inset 1px 0 0 rgba(223, 255, 0, 0.17),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.05),
+        8px 0 42px rgba(0, 0, 0, 0.62);
+    }
   }
 }
 

@@ -23,7 +23,7 @@ export default function LandingPage() {
   }, [value, busy, createThreadFromPrompt, router]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-black">
+    <div className="relative flex h-full min-h-0 flex-col bg-transparent">
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 py-6">
         <div className="w-full max-w-2xl space-y-3">
           <p className="text-center text-[10px] tracking-[0.22em] text-zinc-600">

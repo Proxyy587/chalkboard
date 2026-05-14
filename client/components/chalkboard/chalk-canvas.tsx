@@ -58,8 +58,8 @@ export function ChalkCanvas({
   }
 
   return (
-    <section className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-[#060606]">
-      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 bg-black px-4 py-2">
+    <section className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-neutral-950/50 backdrop-blur-sm md:bg-transparent md:backdrop-blur-none">
+      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 bg-neutral-950/80 px-4 py-2 backdrop-blur-md md:bg-neutral-950/40">
         <div className="flex min-w-0 items-center gap-2">
           <GripVertical className="size-3.5 shrink-0 text-zinc-600" aria-hidden />
           <div className="min-w-0">
@@ -95,7 +95,7 @@ export function ChalkCanvas({
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        <aside className="flex w-full shrink-0 flex-row gap-px overflow-x-auto border-b border-white/10 bg-black md:w-[168px] md:flex-col md:overflow-x-hidden md:overflow-y-auto md:border-b-0 md:border-r md:border-white/10">
+        <aside className="flex w-full shrink-0 flex-row gap-px overflow-x-auto border-b border-white/10 bg-neutral-950/60 backdrop-blur-sm md:w-[168px] md:flex-col md:overflow-x-hidden md:overflow-y-auto md:border-b-0 md:border-r md:border-white/[0.08] md:bg-black/35 md:backdrop-blur-none">
           <div className="hidden items-center justify-between px-2 py-2 md:flex md:border-b md:border-white/10">
             <span className="text-[9px] tracking-[0.16em] text-zinc-600">RENDERS</span>
             <ChevronDown className="size-3 text-zinc-600 md:rotate-[270deg]" />
