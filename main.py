@@ -22,7 +22,6 @@ load_dotenv()
 
 app = FastAPI(title="Clarity Video Service", version="1.0.0")
 
-# Allow any frontend to call this API (tighten ALLOWED_ORIGINS in production).
 _allowed = os.getenv("ALLOWED_ORIGINS", "*")
 _origins = [o.strip() for o in _allowed.split(",") if o.strip()]
 app.add_middleware(
@@ -91,15 +90,19 @@ def _run_job(job_id: str, topic: str, model: str, engine: str, duration: int):
                 status_cb=status_cb,
             )
         )
-        if not result or not result.get("video_url"):
+        if not result or not result.get("ok") or not result.get("video_url"):
             JOBS[job_id]["status"] = "failed"
-            JOBS[job_id]["error"] = "Video generation failed."
+            JOBS[job_id]["error"] = (result or {}).get("error") or "Video generation failed."
+            JOBS[job_id]["engine"] = (result or {}).get("engine")
             return
 
         JOBS[job_id]["status"] = "completed"
         JOBS[job_id]["video_url"] = result["video_url"]
         JOBS[job_id]["engine"] = result.get("engine")
         JOBS[job_id]["duration"] = result.get("duration")
+        JOBS[job_id]["error"] = None
+        if result.get("warning"):
+            JOBS[job_id]["warning"] = result["warning"]
         key = _cache_key(topic, model, engine, duration)
         CACHE[key] = {
             "video_url": result["video_url"],
@@ -171,7 +174,15 @@ async def root():
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "service": "clarity-video"}
+    from services.storage import r2_config_status
+
+    r2 = r2_config_status()
+    return {
+        "status": "ok",
+        "service": "clarity-video",
+        "r2_ready": r2["ready"],
+        "r2": r2,
+    }
 
 
 @app.post("/video/request", response_model=JobCreateResponse)

@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import subprocess
 import time
 import uuid
@@ -17,22 +18,52 @@ def find_output_video(output_dir: str, job_id: str) -> Optional[str]:
     return None
 
 
+def _manim_cmd() -> list[str]:
+    """
+    Prefer the manim binary on PATH (Docker/.venv).
+    Fall back to `uv run manim` for local dev without activated venv.
+    """
+    manim_bin = shutil.which("manim")
+    if manim_bin:
+        return [manim_bin]
+    uv_bin = shutil.which("uv")
+    if uv_bin:
+        return [uv_bin, "run", "manim"]
+    return ["manim"]
+
+
 def render_video(code: str, output_dir: str, log=print) -> tuple[Optional[str], Optional[str]]:
     log("Step 2/6: Starting Manim rendering...")
     job_id = str(uuid.uuid4())
+    os.makedirs(output_dir, exist_ok=True)
     file_path = os.path.join(output_dir, f"{job_id}.py")
     with open(file_path, "w", encoding="utf-8") as f:
         f.write(code)
+
+    cmd = [
+        *_manim_cmd(),
+        file_path,
+        "Scene",
+        "-ql",
+        "--media_dir",
+        output_dir,
+        "-o",
+        job_id,
+    ]
     try:
-        log(f"  ▶️ Executing: uv run manim {file_path} Scene -ql --media_dir {output_dir} -o {job_id}")
+        log(f"  ▶️ Executing: {' '.join(cmd)}")
         t0 = time.time()
         subprocess.run(
-            ["uv", "run", "manim", file_path, "Scene", "-ql", "--media_dir", output_dir, "-o", job_id],
+            cmd,
             check=True,
             capture_output=True,
             text=True,
         )
         log(f"  ✔️ Rendering finished in {time.time()-t0:.1f}s.")
+    except FileNotFoundError as e:
+        err = f"Manim executable not found: {e}"
+        log(f"  ❌ {err}")
+        return None, err
     except subprocess.CalledProcessError as e:
         stderr = (e.stderr or "").strip()
         stdout = (e.stdout or "").strip()
@@ -41,10 +72,12 @@ def render_video(code: str, output_dir: str, log=print) -> tuple[Optional[str], 
         with open(err_path, "w", encoding="utf-8") as f:
             f.write(err)
         log(f"  ❌ Rendering failed. Error log saved: {err_path}")
-        return None, err
+        # Return a truncated error for API clients
+        return None, err[-4000:]
+
     video_path = find_output_video(output_dir, job_id)
     if not video_path:
-        return None, "Could not find rendered video file"
+        return None, "Could not find rendered video file under outputs/videos/"
     log(f"  ✔️ Video will be at {video_path}")
     return video_path, None
 
