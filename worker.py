@@ -35,21 +35,37 @@ async def _run_manim_pipeline(
     topic: str,
     model: str,
     visual_plan: str,
-    duration: int,
+    duration: Optional[int],
     complexity: str,
     max_attempts: int = 4,
 ) -> tuple[Optional[str], Optional[str]]:
     last_error = None
     previous_code = None
     for attempt in range(1, max_attempts + 1):
-        log(f"\n🧠 Manim attempt {attempt}/{max_attempts}")
+        # Escalate simplicity on later retries for higher success rate.
+        attempt_complexity = complexity
+        attempt_plan = visual_plan
+        if attempt >= 2:
+            attempt_complexity = "simple"
+        if attempt >= 3:
+            attempt_plan = (
+                "Keep it VERY simple and crash-proof:\n"
+                "1) Title at top\n"
+                "2) One main MathTex equation at center\n"
+                "3) SurroundingRectangle highlight\n"
+                "4) TransformMatchingTex to next equation\n"
+                "5) Short conclusion text\n"
+                "NO get_part_by_tex, NO arrows to equation parts, NO next_to on subparts.\n"
+                f"Original plan intent (simplify heavily):\n{visual_plan[:1200]}"
+            )
+        log(f"\n🧠 Manim attempt {attempt}/{max_attempts} (complexity={attempt_complexity})")
         try:
             code = generate_manim_code(
                 topic=topic,
                 model=model,
-                visual_plan=visual_plan,
+                visual_plan=attempt_plan,
                 duration=duration,
-                complexity=complexity,
+                complexity=attempt_complexity,
                 error=last_error,
                 previous_code=previous_code,
                 log=log,
@@ -114,7 +130,7 @@ async def process_topic_async(
     topic: str,
     model: str = DEFAULT_MODEL,
     engine: str = "auto",
-    duration: int = 60,
+    duration: Optional[int] = None,
     job_id: Optional[str] = None,
     max_attempts: int = 4,
     status_cb=None,
@@ -134,16 +150,24 @@ async def process_topic_async(
 
     try:
         set_status("routing")
-        route = route_prompt(topic, forced_engine=engine)
+        route = route_prompt(topic, forced_engine=engine, preferred_duration=duration)
         chosen_engine = route["engine"]
-        duration = int(route.get("duration", duration) or duration)
+        # User-provided duration wins; otherwise router-chosen duration.
+        final_duration = int(route["duration"])
         complexity = route.get("complexity", "medium")
         subject = route.get("subject", topic)
-        log(f"Router chose: {chosen_engine} ({route.get('reason')})")
-        set_status("routing", engine=chosen_engine, duration=duration)
+        log(
+            f"Router chose: {chosen_engine} ({route.get('reason')}), "
+            f"duration={final_duration}s, complexity={complexity}"
+        )
+        set_status("routing", engine=chosen_engine, duration=final_duration)
 
         set_status("planning", engine=chosen_engine)
-        visual_plan = generate_visual_plan(subject, chosen_engine, duration=duration)
+        visual_plan = generate_visual_plan(
+            subject,
+            chosen_engine,
+            duration=final_duration,
+        )
         log(f"Visual plan ready ({len(visual_plan)} chars)")
 
         set_status("generating_code", engine=chosen_engine)
@@ -152,7 +176,7 @@ async def process_topic_async(
                 topic=subject,
                 model=model,
                 visual_plan=visual_plan,
-                duration=duration,
+                duration=final_duration,
                 complexity=complexity,
                 job_id=job_id,
                 max_attempts=min(3, max_attempts),
@@ -162,7 +186,7 @@ async def process_topic_async(
                 topic=subject,
                 model=model,
                 visual_plan=visual_plan,
-                duration=duration,
+                duration=final_duration,
                 complexity=complexity,
                 max_attempts=max_attempts,
             )
@@ -243,7 +267,7 @@ def process_topic(
     topic: str,
     model: str = DEFAULT_MODEL,
     engine: str = "auto",
-    duration: int = 60,
+    duration: Optional[int] = None,
     job_id: Optional[str] = None,
     max_attempts: int = 4,
 ) -> Optional[str]:

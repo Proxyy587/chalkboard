@@ -1,7 +1,7 @@
 import json
 import os
 import re
-from typing import Any
+from typing import Any, Optional
 
 from dotenv import load_dotenv
 from openrouter import OpenRouter
@@ -25,15 +25,22 @@ def _parse_json_object(text: str) -> dict[str, Any]:
         return json.loads(match.group(0))
 
 
-def route_prompt(prompt: str, forced_engine: str = "auto") -> dict[str, Any]:
+def route_prompt(
+    prompt: str,
+    forced_engine: str = "auto",
+    preferred_duration: Optional[int] = None,
+) -> dict[str, Any]:
     """Decide manim vs remotion for a user prompt."""
     forced = (forced_engine or "auto").strip().lower()
+
     if forced in {"manim", "remotion"}:
+        duration = preferred_duration if preferred_duration else 55
+        duration = max(20, min(90, int(duration)))
         return {
             "engine": forced,
             "reason": "user specified",
             "complexity": "medium",
-            "duration": 60,
+            "duration": duration,
             "subject": prompt,
         }
 
@@ -48,11 +55,24 @@ def route_prompt(prompt: str, forced_engine: str = "auto") -> dict[str, Any]:
     engine = str(data.get("engine", "manim")).lower()
     if engine not in {"manim", "remotion"}:
         engine = "manim"
-    duration = int(data.get("duration", 60) or 60)
-    duration = max(20, min(90, duration))
+
+    # If caller specified duration, honor it. Otherwise let router decide freely.
+    if preferred_duration:
+        duration = max(15, min(120, int(preferred_duration)))
+    else:
+        duration = int(data.get("duration", 55) or 55)
+        duration = max(25, min(90, duration))
+
     complexity = str(data.get("complexity", "medium")).lower()
     if complexity not in {"simple", "medium", "complex"}:
         complexity = "medium"
+
+    # Prefer simpler plans for reliability (especially Manim)
+    if complexity == "complex":
+        complexity = "medium"
+    if engine == "manim" and complexity == "medium" and duration <= 45:
+        complexity = "simple"
+
     return {
         "engine": engine,
         "reason": str(data.get("reason", "")),

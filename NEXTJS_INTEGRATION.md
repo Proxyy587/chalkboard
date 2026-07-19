@@ -40,10 +40,11 @@ curl -X POST http://20.219.8.173:8000/video/request \
   -d '{
     "prompt": "Explain the product rule",
     "model": "deepseek/deepseek-v3.2",
-    "engine": "auto",
-    "duration": 40
+    "engine": "auto"
   }'
 ```
+
+`duration` is optional (15–120). If omitted, the router picks a natural length (~25–90s).
 
 ### `GET /video/status/{job_id}`
 ```bash
@@ -76,15 +77,18 @@ export async function POST(req: NextRequest) {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (process.env.CLARITY_API_KEY) headers["x-api-key"] = process.env.CLARITY_API_KEY;
 
+  const payload: Record<string, unknown> = {
+    prompt: body.prompt,
+    model: body.model || "deepseek/deepseek-v3.2",
+    engine: body.engine || "auto",
+  };
+  // Only pass duration when the client set one — otherwise router chooses freely.
+  if (body.duration != null) payload.duration = body.duration;
+
   const res = await fetch(`${process.env.CLARITY_API_URL}/video/request`, {
     method: "POST",
     headers,
-    body: JSON.stringify({
-      prompt: body.prompt,
-      model: body.model || "deepseek/deepseek-v3.2",
-      engine: body.engine || "auto",
-      duration: body.duration || 60,
-    }),
+    body: JSON.stringify(payload),
   });
   return NextResponse.json(await res.json(), { status: res.status });
 }

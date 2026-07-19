@@ -56,8 +56,8 @@ def _extract_topic(messages) -> str:
     return user_msgs[-1].strip()
 
 
-def _cache_key(topic: str, model: str, engine: str, duration: int) -> str:
-    raw = f"{topic}::{model}::{engine}::{duration}"
+def _cache_key(topic: str, model: str, engine: str, duration: int | None) -> str:
+    raw = f"{topic}::{model}::{engine}::{duration if duration is not None else 'auto'}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
@@ -72,7 +72,7 @@ def _rate_limit_or_raise(request: Request):
     q.append(now)
 
 
-def _run_job(job_id: str, topic: str, model: str, engine: str, duration: int):
+def _run_job(job_id: str, topic: str, model: str, engine: str, duration: int | None):
     def status_cb(status: str, extra: dict):
         JOBS[job_id]["status"] = status
         if extra:
@@ -115,10 +115,10 @@ def _run_job(job_id: str, topic: str, model: str, engine: str, duration: int):
         JOBS[job_id]["error"] = str(exc)
 
 
-def _enqueue(topic: str, model: str, engine: str, duration: int) -> JobCreateResponse:
+def _enqueue(topic: str, model: str, engine: str, duration: int | None) -> JobCreateResponse:
     model = (model or DEFAULT_MODEL).strip() or DEFAULT_MODEL
     engine = (engine or "auto").strip().lower() or "auto"
-    duration = int(duration or 60)
+    # Keep None as "auto duration" — do not force 60.
 
     key = _cache_key(topic, model, engine, duration)
     hit = CACHE.get(key)
@@ -193,7 +193,7 @@ async def request_video(req: VideoRequest, http_request: Request):
         topic=req.prompt.strip(),
         model=req.model or DEFAULT_MODEL,
         engine=req.engine or "auto",
-        duration=req.duration or 60,
+        duration=req.duration,  # None => router chooses
     )
 
 
@@ -223,7 +223,7 @@ async def generate_chalks(request: ChatRequest, http_request: Request):
         topic=topic,
         model=request.model or DEFAULT_MODEL,
         engine=request.engine or "auto",
-        duration=request.duration or 60,
+        duration=request.duration,  # None => router chooses
     )
 
 

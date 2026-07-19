@@ -6,7 +6,11 @@ from typing import Optional
 from dotenv import load_dotenv
 from openrouter import OpenRouter
 
-from prompts.manim_prompt import MANIM_SYSTEM_PROMPT, MANIM_USER_TEMPLATE
+from prompts.manim_prompt import (
+    MANIM_ERROR_HINTS,
+    MANIM_SYSTEM_PROMPT,
+    MANIM_USER_TEMPLATE,
+)
 from prompts.remotion_prompt import REMOTION_SYSTEM_PROMPT, REMOTION_USER_TEMPLATE
 
 load_dotenv()
@@ -25,16 +29,63 @@ def clean_code(code: str, language: str = "python") -> str:
     return code.strip()
 
 
+def _strip_method_calls(code: str, method: str) -> str:
+    """Replace `obj.method(...)` with `obj`, respecting nested parentheses."""
+    needle = f".{method}("
+    out: list[str] = []
+    i = 0
+    while True:
+        idx = code.find(needle, i)
+        if idx < 0:
+            out.append(code[i:])
+            break
+        # Find start of identifier before the dot
+        start = idx
+        while start > 0 and (code[start - 1].isalnum() or code[start - 1] == "_"):
+            start -= 1
+        out.append(code[i:start])
+        out.append(code[start:idx])  # the object name
+        # Skip balanced (...) after method(
+        pos = idx + len(needle)
+        depth = 1
+        while pos < len(code) and depth:
+            ch = code[pos]
+            if ch == "(":
+                depth += 1
+            elif ch == ")":
+                depth -= 1
+            pos += 1
+        # Also drop trailing [0] if present (legacy get_parts_by_tex usage)
+        if code[pos : pos + 3] == "[0]":
+            pos += 3
+        elif code[pos : pos + 5] == "[ 0 ]":
+            pos += 5
+        i = pos
+    return "".join(out)
+
+
 def sanitize_generated_code(code: str) -> str:
-    code = re.sub(
-        r"\.get_parts_by_tex\((.*?)\)\s*\[\s*0\s*\]",
-        r".get_part_by_tex(\1)",
-        code,
-    )
-    return code.replace(".get_parts_by_tex(", ".get_part_by_tex(")
+    """Deterministic fixes for common LLM Manim mistakes."""
+    # get_part(s)_by_tex often returns None → next_to crashes with NoneType.
+    # Rewrite every call to the parent mobject so arrows/boxes still target something valid.
+    code = _strip_method_calls(code, "get_parts_by_tex")
+    code = _strip_method_calls(code, "get_part_by_tex")
+    return code
 
 
-def generate_visual_plan(topic: str, engine: str, duration: int = 60, model: str = PLANNER_MODEL) -> str:
+def generate_visual_plan(
+    topic: str,
+    engine: str,
+    duration: Optional[int] = None,
+    model: str = PLANNER_MODEL,
+) -> str:
+    if duration:
+        duration_line = f"Plan about a {duration}-second educational video."
+    else:
+        duration_line = (
+            "Choose a natural duration (roughly 30–75 seconds) based on topic complexity. "
+            "Do not force an exact length."
+        )
     response = _client.chat.send(
         model=model,
         messages=[
@@ -44,12 +95,14 @@ def generate_visual_plan(topic: str, engine: str, duration: int = 60, model: str
                     f"You are a {engine} video planner for STEM/education content. "
                     "Describe exactly what should appear on screen at each moment. "
                     "Be specific about shapes, positions, colors, and timing. "
+                    "Keep plans SIMPLE and crash-proof for Manim "
+                    "(no highlighting individual tex substrings with arrows). "
                     "Format as a numbered sequence of visual moments."
                 ),
             },
             {
                 "role": "user",
-                "content": f"Plan a {duration}-second educational video about: {topic}",
+                "content": f"{duration_line}\n\nTopic: {topic}",
             },
         ],
     )
@@ -104,11 +157,17 @@ def generate_narration_script(
     return script
 
 
+def _duration_text(duration: Optional[int]) -> str:
+    if duration:
+        return f"about {duration} seconds (flexible ±20%)"
+    return "choose a natural length for the topic (typically 30–75s)"
+
+
 def generate_manim_code(
     topic: str,
     model: str = DEFAULT_MODEL,
     visual_plan: str = "",
-    duration: int = 60,
+    duration: Optional[int] = None,
     complexity: str = "medium",
     error: Optional[str] = None,
     previous_code: Optional[str] = None,
@@ -118,14 +177,22 @@ def generate_manim_code(
     t0 = time.time()
     user_msg = MANIM_USER_TEMPLATE.format(
         topic=topic,
-        visual_plan=visual_plan or "Auto-detect best educational visual sequence.",
-        duration=duration,
+        visual_plan=visual_plan or "Auto-detect best educational visual sequence. Keep it simple.",
+        duration_text=_duration_text(duration),
         complexity=complexity,
     )
     if previous_code:
-        user_msg += f"\n\nPREVIOUS ATTEMPT:\n{previous_code}"
+        # On retries, send only a truncated previous attempt to leave room for the fix
+        trimmed = previous_code if len(previous_code) < 6000 else previous_code[:6000] + "\n# ... truncated ..."
+        user_msg += f"\n\nPREVIOUS ATTEMPT:\n{trimmed}"
     if error:
-        user_msg += f"\n\nRENDER ERROR TO FIX (fix only what is broken):\n{error}"
+        user_msg += f"\n\nRENDER ERROR TO FIX (fix only what is broken):\n{error[-2500:]}"
+        user_msg += f"\n{MANIM_ERROR_HINTS}"
+        if "NoneType" in error and "next_to" in error:
+            user_msg += (
+                "\nSPECIFIC FIX REQUIRED: Remove ALL get_part_by_tex / next_to(part) patterns. "
+                "Highlight whole MathTex with SurroundingRectangle instead."
+            )
 
     response = _client.chat.send(
         model=model,
@@ -147,7 +214,7 @@ def generate_remotion_code(
     topic: str,
     model: str = DEFAULT_MODEL,
     visual_plan: str = "",
-    duration: int = 60,
+    duration: Optional[int] = None,
     complexity: str = "medium",
     error: Optional[str] = None,
     previous_code: Optional[str] = None,
@@ -155,17 +222,18 @@ def generate_remotion_code(
 ) -> str:
     log("Generating Remotion code...")
     t0 = time.time()
+    dur = duration or 55
     user_msg = REMOTION_USER_TEMPLATE.format(
         topic=topic,
-        duration=duration,
-        frames=duration * 30,
+        duration=dur,
+        frames=dur * 30,
         complexity=complexity,
         visual_plan=visual_plan or "Auto-detect best educational visual sequence.",
     )
     if previous_code:
-        user_msg += f"\n\nPREVIOUS ATTEMPT:\n{previous_code}"
+        user_msg += f"\n\nPREVIOUS ATTEMPT:\n{previous_code[:6000]}"
     if error:
-        user_msg += f"\n\nRENDER ERROR TO FIX (fix only what is broken):\n{error}"
+        user_msg += f"\n\nRENDER ERROR TO FIX (fix only what is broken):\n{error[-2500:]}"
 
     response = _client.chat.send(
         model=model,
