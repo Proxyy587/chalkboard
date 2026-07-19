@@ -94,6 +94,14 @@ R2_PUBLIC_BASE_URL=https://pub-xxxx.r2.dev
 CLARITY_API_KEY=make-a-long-random-string
 ALLOWED_ORIGINS=*
 
+# Storage policy
+# local  → keep files under ./outputs (dev)
+# vps    → render under /tmp/clarity-jobs, upload to R2, then delete
+CLARITY_ENV=vps
+KEEP_LOCAL_OUTPUTS=false
+# Optional override for work directory:
+# CLARITY_WORK_DIR=/tmp/clarity-jobs
+
 # Optional tuning
 CACHE_TTL_SECONDS=21600
 RATE_LIMIT_COUNT=20
@@ -106,6 +114,7 @@ RATE_LIMIT_WINDOW_SECONDS=600
 2. **R2 bucket + tokens** → Cloudflare Dashboard → R2 → Create bucket → Manage R2 API Tokens  
 3. **Public base URL** → Enable public access / R2.dev subdomain or custom domain on the bucket  
 4. **CLARITY_API_KEY** → any long random secret you invent for your frontend/backend
+5. **CLARITY_ENV** → `local` on your laptop, `vps` on the Azure/cloud box (deletes local videos after R2 upload)
 
 ---
 

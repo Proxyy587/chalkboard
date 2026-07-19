@@ -31,6 +31,7 @@ curl http://20.219.8.173:8000/health
 ```
 
 Returns `r2_ready: true/false` so you can verify R2 env vars are loaded.
+Also returns `storage: { clarity_env, keep_local_outputs, work_root }` — on VPS you want `clarity_env: "vps"` and `keep_local_outputs: false` so local renders are deleted after R2 upload.
 
 ### `POST /video/request`
 ```bash

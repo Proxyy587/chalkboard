@@ -9,6 +9,10 @@ services:
     environment:
       - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
       - CHROME_BIN=/usr/bin/chromium
-    volumes:
-      - ./outputs:/app/outputs
+      # VPS: render to /tmp, upload to R2, then delete local files.
+      # Override in .env with CLARITY_ENV=local to keep outputs on disk.
+      - CLARITY_ENV=${CLARITY_ENV:-vps}
+      - KEEP_LOCAL_OUTPUTS=${KEEP_LOCAL_OUTPUTS:-false}
+    # Do NOT bind-mount ./outputs on VPS — that fills the host disk.
+    # Jobs use /tmp/clarity-jobs and are wiped after R2 upload.
     restart: unless-stopped

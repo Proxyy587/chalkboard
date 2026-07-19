@@ -174,14 +174,17 @@ async def root():
 
 @app.get("/health")
 async def health():
+    from services.config import storage_policy
     from services.storage import r2_config_status
 
     r2 = r2_config_status()
+    storage = storage_policy()
     return {
         "status": "ok",
         "service": "clarity-video",
         "r2_ready": r2["ready"],
         "r2": r2,
+        "storage": storage,
     }
 
 

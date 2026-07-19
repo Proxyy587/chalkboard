@@ -6,6 +6,7 @@ from typing import Optional
 
 from router import route_prompt
 from services.audio import generate_audio_with_captions
+from services.config import cleanup_job_dir, job_work_dir, keep_local_outputs, storage_policy
 from services.llm import (
     DEFAULT_MODEL,
     generate_manim_code,
@@ -17,8 +18,6 @@ from services.merger import merge_video_audio_captions
 from services.remotion_renderer import render_remotion
 from services.renderer import get_media_duration, render_video
 from services.storage import upload_to_r2
-
-OUTPUT_DIR = "outputs"
 
 
 def log(msg: str):
@@ -37,12 +36,12 @@ async def _run_manim_pipeline(
     visual_plan: str,
     duration: Optional[int],
     complexity: str,
+    output_dir: str,
     max_attempts: int = 4,
 ) -> tuple[Optional[str], Optional[str]]:
     last_error = None
     previous_code = None
     for attempt in range(1, max_attempts + 1):
-        # Escalate simplicity on later retries for higher success rate.
         attempt_complexity = complexity
         attempt_plan = visual_plan
         if attempt >= 2:
@@ -75,7 +74,7 @@ async def _run_manim_pipeline(
             log(f"  ❌ Code generation failed: {last_error}")
             continue
         previous_code = code
-        video, err = render_video(code, output_dir=OUTPUT_DIR, log=log)
+        video, err = render_video(code, output_dir=output_dir, log=log)
         if video:
             return video, None
         last_error = err
@@ -90,6 +89,7 @@ async def _run_remotion_pipeline(
     duration: int,
     complexity: str,
     job_id: str,
+    output_dir: str,
     max_attempts: int = 3,
 ) -> tuple[Optional[str], Optional[str]]:
     last_error = None
@@ -116,7 +116,7 @@ async def _run_remotion_pipeline(
             tsx_code=code,
             job_id=f"{job_id}_{attempt}",
             duration=duration,
-            output_dir=OUTPUT_DIR,
+            output_dir=output_dir,
             log=log,
         )
         if video:
@@ -124,6 +124,29 @@ async def _run_remotion_pipeline(
         last_error = err
         log("🔁 Remotion render failed — retrying with error context...")
     return None, last_error or "Remotion failed after all attempts"
+
+
+def _upload_and_maybe_cleanup(
+    local_path: str,
+    object_key: str,
+    work_dir: str,
+) -> str:
+    """Upload to R2, then wipe the job work dir on VPS."""
+    if not local_path or not os.path.isfile(local_path):
+        raise FileNotFoundError(f"Nothing to upload: {local_path}")
+    try:
+        url = upload_to_r2(local_path, object_key=object_key, log=log)
+    except Exception as e:
+        # Still free disk on VPS even if upload fails
+        cleanup_job_dir(work_dir, log=log)
+        raise RuntimeError(f"R2 upload failed: {e}") from e
+
+    cleanup_job_dir(work_dir, log=log)
+    if keep_local_outputs():
+        log(f"  💾 Keeping local outputs ({storage_policy()['clarity_env']})")
+    else:
+        log("  🧹 Local job files removed after R2 upload (VPS mode)")
+    return url
 
 
 async def process_topic_async(
@@ -141,18 +164,24 @@ async def process_topic_async(
       success → {ok: True, video_url, engine, duration, ...}
       failure → {ok: False, error: "...", engine?: ...}
     """
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
     job_id = job_id or uuid.uuid4().hex
+    work_dir = job_work_dir(job_id)
+    policy = storage_policy()
+    log(
+        f"Storage policy: env={policy['clarity_env']}, "
+        f"keep_local={policy['keep_local_outputs']}, work_dir={work_dir}"
+    )
 
     def set_status(status: str, **extra):
         if status_cb:
             status_cb(status, extra)
 
+    video = None
+    chosen_engine = None
     try:
         set_status("routing")
         route = route_prompt(topic, forced_engine=engine, preferred_duration=duration)
         chosen_engine = route["engine"]
-        # User-provided duration wins; otherwise router-chosen duration.
         final_duration = int(route["duration"])
         complexity = route.get("complexity", "medium")
         subject = route.get("subject", topic)
@@ -179,6 +208,7 @@ async def process_topic_async(
                 duration=final_duration,
                 complexity=complexity,
                 job_id=job_id,
+                output_dir=work_dir,
                 max_attempts=min(3, max_attempts),
             )
         else:
@@ -188,12 +218,14 @@ async def process_topic_async(
                 visual_plan=visual_plan,
                 duration=final_duration,
                 complexity=complexity,
+                output_dir=work_dir,
                 max_attempts=max_attempts,
             )
 
         if not (video and os.path.exists(video)):
             err = render_err or "Failed to generate base video"
             log(f"❌ {err}")
+            cleanup_job_dir(work_dir, log=log)
             return {"ok": False, "error": err[-4000:], "engine": chosen_engine}
 
         log(f"✅ Base video: {video}")
@@ -203,12 +235,12 @@ async def process_topic_async(
             topic=subject,
             visual_plan=visual_plan,
             video_duration=video_duration,
-            output_dir=OUTPUT_DIR,
+            output_dir=work_dir,
             model=model,
             log=log,
         )
         audio_path, srt_path, audio_duration = await generate_audio_with_captions(
-            narration_script, output_dir=OUTPUT_DIR, log=log
+            narration_script, output_dir=work_dir, log=log
         )
 
         set_status("merging", engine=chosen_engine)
@@ -218,15 +250,15 @@ async def process_topic_async(
             srt_path=srt_path,
             video_duration=video_duration,
             audio_duration=audio_duration,
-            output_dir=OUTPUT_DIR,
+            output_dir=work_dir,
             log=log,
         )
 
         set_status("uploading", engine=chosen_engine)
-        video_url = upload_to_r2(
+        video_url = _upload_and_maybe_cleanup(
             final_video,
             object_key=_r2_object_key(job_id, "final"),
-            log=log,
+            work_dir=work_dir,
         )
         log(f"☁️ Uploaded: {video_url}")
         return {
@@ -238,29 +270,35 @@ async def process_topic_async(
         }
     except Exception as e:
         log(f"⚠️ Pipeline error: {e}")
-        # Best-effort: upload whatever base video exists
+        # Best-effort: upload whatever base video exists, then clean disk on VPS
         try:
-            if "video" in locals() and video and os.path.exists(video):
-                set_status("uploading", engine=locals().get("chosen_engine"))
-                video_url = upload_to_r2(
+            if video and os.path.exists(video):
+                set_status("uploading", engine=chosen_engine)
+                try:
+                    silent_duration = get_media_duration(video)
+                except Exception:
+                    silent_duration = None
+                video_url = _upload_and_maybe_cleanup(
                     video,
                     object_key=_r2_object_key(job_id, "silent"),
-                    log=log,
+                    work_dir=work_dir,
                 )
                 return {
                     "ok": True,
                     "video_url": video_url,
-                    "engine": locals().get("chosen_engine"),
-                    "duration": get_media_duration(video),
+                    "engine": chosen_engine,
+                    "duration": silent_duration,
                     "warning": str(e),
                 }
         except Exception as upload_err:
+            cleanup_job_dir(work_dir, log=log)
             return {
                 "ok": False,
                 "error": f"{e} | upload also failed: {upload_err}",
-                "engine": locals().get("chosen_engine"),
+                "engine": chosen_engine,
             }
-        return {"ok": False, "error": str(e), "engine": locals().get("chosen_engine")}
+        cleanup_job_dir(work_dir, log=log)
+        return {"ok": False, "error": str(e), "engine": chosen_engine}
 
 
 def process_topic(
