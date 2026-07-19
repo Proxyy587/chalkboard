@@ -11,7 +11,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # System deps: Manim + ffmpeg + Chromium (Remotion)
+# build-essential/python3-dev/meson/ninja are required to compile pycairo/manimpango.
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    python3-dev \
+    meson \
+    ninja-build \
+    pkg-config \
     curl \
     ca-certificates \
     ffmpeg \
@@ -21,7 +27,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libcairo2-dev \
     libpango-1.0-0 \
     libpango1.0-dev \
-    pkg-config \
+    libffi-dev \
     texlive-latex-base \
     texlive-latex-extra \
     texlive-fonts-recommended \
