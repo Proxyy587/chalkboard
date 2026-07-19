@@ -1,0 +1,14 @@
+services:
+  clarity-video:
+    build: .
+    container_name: clarity-video
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+      - CHROME_BIN=/usr/bin/chromium
+    volumes:
+      - ./outputs:/app/outputs
+    restart: unless-stopped

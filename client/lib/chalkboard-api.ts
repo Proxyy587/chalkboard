@@ -46,7 +46,8 @@ async function readApiError(res: Response): Promise<string> {
 
 export async function createLectureJob(
   messages: ApiMessage[],
-  model: string
+  model: string,
+  opts?: { engine?: "auto" | "manim" | "remotion"; duration?: number }
 ): Promise<JobCreateResponse> {
   const base = getChalkboardApiBase();
   const res = await fetch(`${base}/generate-lecture`, {
@@ -55,6 +56,8 @@ export async function createLectureJob(
     body: JSON.stringify({
       messages,
       model: model.trim() || DEFAULT_LECTURE_MODEL,
+      engine: opts?.engine ?? "auto",
+      duration: opts?.duration ?? 60,
     }),
   });
   if (!res.ok) throw new Error(await readApiError(res));

@@ -3,12 +3,17 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    UV_LINK_MODE=copy
+    UV_LINK_MODE=copy \
+    PUPPETEER_SKIP_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
+    CHROME_BIN=/usr/bin/chromium
 
 WORKDIR /app
 
-# System packages required by Manim + ffmpeg subtitle burn-in.
+# System deps: Manim + ffmpeg + Chromium (Remotion)
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    ca-certificates \
     ffmpeg \
     libass9 \
     libass-dev \
@@ -22,20 +27,31 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     texlive-fonts-recommended \
     dvisvgm \
     ghostscript \
-    ca-certificates \
+    fonts-liberation \
+    fonts-dejavu-core \
+    chromium \
     && rm -rf /var/lib/apt/lists/*
 
-# Use uv for deterministic dependency installation from lockfile.
-RUN pip install --no-cache-dir uv
+# Node.js 20 for Remotion
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && rm -rf /var/lib/apt/lists/*
 
+# Python deps via uv
+RUN pip install --no-cache-dir uv
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev
 
-# Copy source after deps for better Docker layer caching.
-COPY . .
+# Remotion deps
+COPY remotion-src/package.json remotion-src/
+RUN cd remotion-src && npm install --omit=dev
 
-# Put venv binaries first (manim, python, etc.)
+# App source
+COPY . .
+RUN mkdir -p outputs remotion-src/src/compositions
+
 ENV PATH="/app/.venv/bin:$PATH"
 
-# API server default for cloud hosting.
+EXPOSE 8000
+
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

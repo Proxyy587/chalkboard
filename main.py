@@ -1,22 +1,33 @@
 import asyncio
 import hashlib
+import os
 import time
 import uuid
 from collections import defaultdict, deque
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from schema.chat import ChatRequest, JobCreateResponse, JobStatusResponse
-from worker import process_topic, DEFAULT_MODEL
 
-app = FastAPI()
+from schema.chat import (
+    ChatRequest,
+    JobCreateResponse,
+    JobStatusResponse,
+    VideoRequest,
+)
+from services.llm import DEFAULT_MODEL
+from worker import process_topic_async
+
+load_dotenv()
+
+app = FastAPI(title="Clarity Video Service", version="1.0.0")
+
+# Allow any frontend to call this API (tighten ALLOWED_ORIGINS in production).
+_allowed = os.getenv("ALLOWED_ORIGINS", "*")
+_origins = [o.strip() for o in _allowed.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
-    allow_origin_regex=r"http://(localhost|127\.0\.0\.1):\d+",
+    allow_origins=_origins if _origins != ["*"] else ["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -24,11 +35,19 @@ app.add_middleware(
 
 JOBS: dict[str, dict] = {}
 CACHE: dict[str, dict] = {}
-CACHE_TTL_SECONDS = 6 * 60 * 60
-
-RATE_LIMIT_COUNT = 10
-RATE_LIMIT_WINDOW_SECONDS = 10 * 60
+CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", str(6 * 60 * 60)))
+RATE_LIMIT_COUNT = int(os.getenv("RATE_LIMIT_COUNT", "20"))
+RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", str(10 * 60)))
 REQUEST_LOG: dict[str, deque] = defaultdict(deque)
+API_KEY = os.getenv("CLARITY_API_KEY", "").strip()
+
+
+def _require_api_key(request: Request):
+    if not API_KEY:
+        return
+    provided = request.headers.get("x-api-key") or request.headers.get("authorization", "").removeprefix("Bearer ").strip()
+    if provided != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid or missing API key.")
 
 
 def _extract_topic(messages) -> str:
@@ -38,8 +57,9 @@ def _extract_topic(messages) -> str:
     return user_msgs[-1].strip()
 
 
-def _cache_key(topic: str, model: str) -> str:
-    return hashlib.sha256(f"{topic}::{model}".encode("utf-8")).hexdigest()
+def _cache_key(topic: str, model: str, engine: str, duration: int) -> str:
+    raw = f"{topic}::{model}::{engine}::{duration}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 def _rate_limit_or_raise(request: Request):
@@ -53,46 +73,70 @@ def _rate_limit_or_raise(request: Request):
     q.append(now)
 
 
-def _run_job(job_id: str, topic: str, model: str):
+def _run_job(job_id: str, topic: str, model: str, engine: str, duration: int):
+    def status_cb(status: str, extra: dict):
+        JOBS[job_id]["status"] = status
+        if extra:
+            JOBS[job_id].update(extra)
+
     try:
         JOBS[job_id]["status"] = "processing"
-        video_url = process_topic(topic, model=model)
-        if not video_url:
+        result = asyncio.run(
+            process_topic_async(
+                topic=topic,
+                model=model,
+                engine=engine,
+                duration=duration,
+                job_id=job_id,
+                status_cb=status_cb,
+            )
+        )
+        if not result or not result.get("video_url"):
             JOBS[job_id]["status"] = "failed"
             JOBS[job_id]["error"] = "Video generation failed."
             return
+
         JOBS[job_id]["status"] = "completed"
-        JOBS[job_id]["video_url"] = video_url
-        key = _cache_key(topic, model)
-        CACHE[key] = {"video_url": video_url, "created_at": time.time()}
+        JOBS[job_id]["video_url"] = result["video_url"]
+        JOBS[job_id]["engine"] = result.get("engine")
+        JOBS[job_id]["duration"] = result.get("duration")
+        key = _cache_key(topic, model, engine, duration)
+        CACHE[key] = {
+            "video_url": result["video_url"],
+            "engine": result.get("engine"),
+            "duration": result.get("duration"),
+            "created_at": time.time(),
+        }
     except Exception as exc:
         JOBS[job_id]["status"] = "failed"
         JOBS[job_id]["error"] = str(exc)
 
 
-@app.get("/")
-async def root():
-    return {"message": "Welcome to ChalkBoard API"}
+def _enqueue(topic: str, model: str, engine: str, duration: int) -> JobCreateResponse:
+    model = (model or DEFAULT_MODEL).strip() or DEFAULT_MODEL
+    engine = (engine or "auto").strip().lower() or "auto"
+    duration = int(duration or 60)
 
-
-@app.post("/generate-lecture", response_model=JobCreateResponse)
-async def generate_chalks(request: ChatRequest, http_request: Request):
-    _rate_limit_or_raise(http_request)
-    topic = _extract_topic(request.messages)
-    model = (request.model or DEFAULT_MODEL).strip() or DEFAULT_MODEL
-
-    key = _cache_key(topic, model)
+    key = _cache_key(topic, model, engine, duration)
     hit = CACHE.get(key)
     if hit and time.time() - hit["created_at"] <= CACHE_TTL_SECONDS:
         job_id = str(uuid.uuid4())
         JOBS[job_id] = {
             "status": "completed",
             "video_url": hit["video_url"],
+            "engine": hit.get("engine"),
+            "duration": hit.get("duration"),
             "error": None,
             "cached": True,
             "created_at": time.time(),
         }
-        return JobCreateResponse(job_id=job_id, status="completed", cached=True, video_url=hit["video_url"])
+        return JobCreateResponse(
+            job_id=job_id,
+            status="completed",
+            cached=True,
+            video_url=hit["video_url"],
+            engine=hit.get("engine"),
+        )
 
     job_id = str(uuid.uuid4())
     JOBS[job_id] = {
@@ -103,13 +147,47 @@ async def generate_chalks(request: ChatRequest, http_request: Request):
         "created_at": time.time(),
         "topic": topic,
         "model": model,
+        "engine": engine,
+        "duration": duration,
     }
-    asyncio.create_task(asyncio.to_thread(_run_job, job_id, topic, model))
-    return JobCreateResponse(job_id=job_id, status="queued", cached=False, video_url=None)
+    asyncio.create_task(asyncio.to_thread(_run_job, job_id, topic, model, engine, duration))
+    return JobCreateResponse(job_id=job_id, status="queued", cached=False, video_url=None, engine=None)
 
 
-@app.get("/jobs/{job_id}", response_model=JobStatusResponse)
-async def get_job_status(job_id: str):
+@app.get("/")
+async def root():
+    return {
+        "service": "Clarity Video API",
+        "docs": "/docs",
+        "health": "/health",
+        "endpoints": {
+            "POST /video/request": "Create a video job (recommended)",
+            "GET /video/status/{job_id}": "Poll job status",
+            "POST /generate-lecture": "Legacy chalkboard endpoint",
+            "GET /jobs/{job_id}": "Legacy job status",
+        },
+    }
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok", "service": "clarity-video"}
+
+
+@app.post("/video/request", response_model=JobCreateResponse)
+async def request_video(req: VideoRequest, http_request: Request):
+    _require_api_key(http_request)
+    _rate_limit_or_raise(http_request)
+    return _enqueue(
+        topic=req.prompt.strip(),
+        model=req.model or DEFAULT_MODEL,
+        engine=req.engine or "auto",
+        duration=req.duration or 60,
+    )
+
+
+@app.get("/video/status/{job_id}", response_model=JobStatusResponse)
+async def video_status(job_id: str):
     job = JOBS.get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found.")
@@ -119,16 +197,25 @@ async def get_job_status(job_id: str):
         video_url=job.get("video_url"),
         error=job.get("error"),
         cached=job.get("cached", False),
+        engine=job.get("engine"),
+        duration=job.get("duration"),
     )
 
-@app.get("/health")
-async def health():
-    return {"status": "ok"}
 
-@app.get("/metrics")
-async def metrics():
-    return {"status": "ok"}
+@app.post("/generate-lecture", response_model=JobCreateResponse)
+async def generate_chalks(request: ChatRequest, http_request: Request):
+    """Backward-compatible chalkboard endpoint."""
+    _require_api_key(http_request)
+    _rate_limit_or_raise(http_request)
+    topic = _extract_topic(request.messages)
+    return _enqueue(
+        topic=topic,
+        model=request.model or DEFAULT_MODEL,
+        engine=request.engine or "auto",
+        duration=request.duration or 60,
+    )
 
-@app.get("/metrics/upstash")
-async def upstash_metrics():
-    return {"status": "ok"}
+
+@app.get("/jobs/{job_id}", response_model=JobStatusResponse)
+async def get_job_status(job_id: str):
+    return await video_status(job_id)

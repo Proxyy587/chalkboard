@@ -24,12 +24,17 @@ async def _generate_audio_with_captions_async(script: str, output_dir: str, voic
     with open(audio_path, "wb") as f:
         f.write(audio_bytes)
     with open(srt_path, "w", encoding="utf-8") as f:
+        srt_text = ""
         if hasattr(submaker, "get_srt"):
-            f.write(submaker.get_srt())
+            srt_text = submaker.get_srt() or ""
         elif hasattr(submaker, "generate_subs"):
-            f.write(submaker.generate_subs(words_in_cue=6))
+            srt_text = submaker.generate_subs(words_in_cue=6) or ""
         else:
             raise RuntimeError("Unsupported edge-tts SubMaker API.")
+        f.write(srt_text)
+    if not srt_text.strip():
+        # Keep an empty file but caller/merger will skip caption mux.
+        pass
     return audio_path, srt_path, get_media_duration(audio_path)
 
 

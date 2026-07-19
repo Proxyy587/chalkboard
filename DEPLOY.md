@@ -1,0 +1,407 @@
+# Clarity Video Service — Deploy & Integrate Guide
+
+This service turns a text prompt into a narrated educational video using:
+
+- **Manim** → math / physics / LaTeX / geometric animation
+- **Remotion** → charts / timelines / modern UI-style explainers
+
+It auto-routes the prompt, renders video, adds TTS narration, uploads to Cloudflare R2, and returns a public URL.
+
+---
+
+## 1. What you get (API)
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/health` | Health check |
+| `POST` | `/video/request` | Create a video job (recommended) |
+| `GET` | `/video/status/{job_id}` | Poll until complete |
+| `POST` | `/generate-lecture` | Legacy chalkboard-compatible endpoint |
+| `GET` | `/jobs/{job_id}` | Legacy status poll |
+| `GET` | `/docs` | Interactive Swagger UI |
+
+### Create job
+
+```bash
+curl -X POST https://YOUR_DOMAIN/video/request \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: YOUR_CLARITY_API_KEY" \
+  -d '{
+    "prompt": "Explain the product rule with a visual derivation",
+    "model": "deepseek/deepseek-v3.2",
+    "engine": "auto",
+    "duration": 60
+  }'
+```
+
+Response:
+
+```json
+{
+  "job_id": "uuid...",
+  "status": "queued",
+  "cached": false,
+  "video_url": null,
+  "engine": null
+}
+```
+
+### Poll status
+
+```bash
+curl https://YOUR_DOMAIN/video/status/JOB_ID
+```
+
+When done:
+
+```json
+{
+  "job_id": "...",
+  "status": "completed",
+  "video_url": "https://pub-xxxx.r2.dev/videos/....mp4",
+  "engine": "manim",
+  "duration": 52.0,
+  "cached": false
+}
+```
+
+`engine` can be forced: `"manim"` | `"remotion"` | `"auto"`.
+
+`model` defaults to `deepseek/deepseek-v3.2` if omitted.
+
+---
+
+## 2. Environment variables
+
+Create a `.env` file (never commit secrets):
+
+```env
+# LLM
+OPENROUTER_API_KEY=sk-or-...
+DEFAULT_MODEL=deepseek/deepseek-v3.2
+ROUTER_MODEL=openai/gpt-4o-mini
+PLANNER_MODEL=openai/gpt-4o-mini
+
+# Cloudflare R2 (S3-compatible)
+R2_ACCOUNT_ID=your_account_id
+R2_BUCKET_NAME=manim-video
+R2_ACCESS_KEY_ID=...
+R2_SECRET_ACCESS_KEY=...
+AWS_ENDPOINT_URL_S3=https://YOUR_ACCOUNT_ID.r2.cloudflarestorage.com
+R2_PUBLIC_BASE_URL=https://pub-xxxx.r2.dev
+
+# API security / CORS
+CLARITY_API_KEY=make-a-long-random-string
+ALLOWED_ORIGINS=*
+
+# Optional tuning
+CACHE_TTL_SECONDS=21600
+RATE_LIMIT_COUNT=20
+RATE_LIMIT_WINDOW_SECONDS=600
+```
+
+### Where to get each value
+
+1. **OpenRouter key** → https://openrouter.ai/keys  
+2. **R2 bucket + tokens** → Cloudflare Dashboard → R2 → Create bucket → Manage R2 API Tokens  
+3. **Public base URL** → Enable public access / R2.dev subdomain or custom domain on the bucket  
+4. **CLARITY_API_KEY** → any long random secret you invent for your frontend/backend
+
+---
+
+## 3. Docker from scratch (local)
+
+### A. Install Docker Desktop
+- Install Docker Desktop for Mac/Windows/Linux
+- Open it and wait until it says **Engine running**
+
+### B. Verify
+```bash
+docker version
+docker info
+```
+
+### C. Build
+From the project root (`manim-vid/`):
+
+```bash
+docker build -t clarity-video .
+```
+
+First build takes **10–20 minutes** (TeX + Node + Chromium).
+
+### D. Run
+```bash
+docker run --rm -p 8000:8000 --env-file .env clarity-video
+```
+
+Or with Compose:
+
+```bash
+docker compose up --build
+```
+
+### E. Test
+```bash
+curl http://localhost:8000/health
+open http://localhost:8000/docs
+```
+
+---
+
+## 4. Host online (VPS beginner path)
+
+### A. Get a VPS
+Any Ubuntu 22.04+ VPS works (DigitalOcean, Hetzner, Linode, AWS Lightsail).
+
+Recommended: **4GB RAM / 2 vCPU** minimum (Manim + Remotion are heavy).
+
+### B. SSH in
+```bash
+ssh root@YOUR_VPS_IP
+```
+
+### C. Install Docker on the VPS
+```bash
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER
+# log out / log in after this
+```
+
+### D. Clone & configure
+```bash
+git clone https://github.com/YOUR_USER/manim-vid.git
+cd manim-vid
+nano .env   # paste your env vars
+```
+
+### E. Build & run
+```bash
+docker compose up -d --build
+docker logs -f clarity-video
+```
+
+### F. Point a domain (Nginx + HTTPS)
+
+```bash
+sudo apt update && sudo apt install -y nginx certbot python3-certbot-nginx
+```
+
+Create `/etc/nginx/sites-available/clarity-video`:
+
+```nginx
+server {
+    listen 80;
+    server_name video.yourdomain.com;
+
+    client_max_body_size 20m;
+    proxy_read_timeout 600s;
+    proxy_connect_timeout 600s;
+    proxy_send_timeout 600s;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+```bash
+sudo ln -s /etc/nginx/sites-available/clarity-video /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+sudo certbot --nginx -d video.yourdomain.com
+```
+
+Your public API base becomes:
+`https://video.yourdomain.com`
+
+### G. Redeploy after code changes
+```bash
+cd ~/manim-vid
+git pull
+docker compose up -d --build
+```
+
+---
+
+## 5. Host on Railway / Render (managed)
+
+### Railway
+1. Push repo to GitHub
+2. New Project → Deploy from GitHub
+3. Select Dockerfile
+4. Add all `.env` variables in Railway Variables
+5. Expose port `8000`
+6. Copy the public URL
+
+### Render
+1. New Web Service → connect GitHub
+2. Environment: Docker
+3. Add env vars
+4. Deploy
+
+> Note: free tiers may kill long jobs. Prefer a paid plan or VPS for Manim/Remotion.
+
+---
+
+## 6. Integrate into ANY Next.js / React app
+
+This service is a pure HTTP API. Your Next.js app only needs:
+
+1. Base URL of the API
+2. Optional API key
+3. Polling loop
+
+### Env in your Next.js app
+
+```env
+NEXT_PUBLIC_CLARITY_API_URL=https://video.yourdomain.com
+CLARITY_API_KEY=make-a-long-random-string
+```
+
+> Prefer calling the video API from a **Next.js Route Handler** (server side) so the API key is not exposed to the browser.
+
+### Example: `app/api/video/route.ts` (server)
+
+```ts
+import { NextRequest, NextResponse } from "next/server";
+
+const BASE = process.env.NEXT_PUBLIC_CLARITY_API_URL!;
+const KEY = process.env.CLARITY_API_KEY!;
+
+export async function POST(req: NextRequest) {
+  const body = await req.json();
+  const res = await fetch(`${BASE}/video/request`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": KEY,
+    },
+    body: JSON.stringify({
+      prompt: body.prompt,
+      model: body.model || "deepseek/deepseek-v3.2",
+      engine: body.engine || "auto",
+      duration: body.duration || 60,
+    }),
+  });
+  const data = await res.json();
+  return NextResponse.json(data, { status: res.status });
+}
+```
+
+### Example: client poller
+
+```ts
+async function generateVideo(prompt: string) {
+  const create = await fetch("/api/video", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt }),
+  }).then((r) => r.json());
+
+  if (create.video_url) return create.video_url; // cache hit
+
+  const jobId = create.job_id;
+  for (let i = 0; i < 120; i++) {
+    await new Promise((r) => setTimeout(r, 3000));
+    const status = await fetch(
+      `${process.env.NEXT_PUBLIC_CLARITY_API_URL}/video/status/${jobId}`
+    ).then((r) => r.json());
+
+    if (status.status === "completed") return status.video_url;
+    if (status.status === "failed") throw new Error(status.error || "failed");
+  }
+  throw new Error("Timed out waiting for video");
+}
+```
+
+### Chat UX pattern (`@video ...`)
+
+In your chat app:
+
+1. Detect message starts with `@video `
+2. Strip prefix → send remaining text as `prompt`
+3. Show “Generating video…” with status badges: `queued → planning → rendering → merging → uploading → completed`
+4. Render `<video src={video_url} controls />` when ready
+
+---
+
+## 7. Engine routing (how Manim vs Remotion is chosen)
+
+Router LLM (`ROUTER_MODEL`) returns JSON:
+
+```json
+{
+  "engine": "manim",
+  "reason": "...",
+  "complexity": "medium",
+  "duration": 60,
+  "subject": "cleaned topic"
+}
+```
+
+- Math / calculus / vectors / LaTeX → **manim**
+- Charts / timelines / infographics → **remotion**
+- User can force with `"engine": "manim"` or `"remotion"`
+
+---
+
+## 8. Folder map (what matters)
+
+```
+manim-vid/
+├── main.py                 # FastAPI
+├── worker.py               # dual-engine pipeline
+├── router.py               # manim vs remotion decision
+├── prompts/                # LLM system prompts
+├── services/
+│   ├── llm.py
+│   ├── renderer.py         # Manim
+│   ├── remotion_renderer.py
+│   ├── audio.py
+│   ├── merger.py
+│   └── storage.py          # R2 upload (boto3 S3)
+├── remotion-src/           # Remotion React project
+├── Dockerfile
+├── docker-compose.yml
+└── DEPLOY.md               # this file
+```
+
+---
+
+## 9. Common failures
+
+| Error | Fix |
+|-------|-----|
+| `docker.sock no such file` | Start Docker Desktop |
+| `lookup registry-1.docker.io` | Fix DNS/VPN; set Docker DNS to `8.8.8.8` |
+| `Dockerfile not found` | `cd` into project root before `docker build` |
+| R2 upload fails | Check endpoint has **no** `/bucket` suffix; verify keys |
+| Remotion fails in Docker | Ensure Chromium installed; `PUPPETEER_EXECUTABLE_PATH` set |
+| OpenRouter 401/403 | Rotate/replace `OPENROUTER_API_KEY` |
+
+---
+
+## 10. Security checklist before going public
+
+- [ ] Set `CLARITY_API_KEY`
+- [ ] Restrict `ALLOWED_ORIGINS` to your frontend domains
+- [ ] Rotate any keys that were ever pasted into chat/logs
+- [ ] Keep `.env` out of git
+- [ ] Prefer server-side Next.js proxy for API key
+- [ ] Monitor rate limits / OpenRouter spend
+
+---
+
+You’re done when:
+
+```bash
+curl https://video.yourdomain.com/health
+# {"status":"ok","service":"clarity-video"}
+```
+
+Then wire your Next.js app to `/video/request` + `/video/status/{id}` and stream the returned R2 URL.

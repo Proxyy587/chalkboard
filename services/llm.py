@@ -6,15 +6,21 @@ from typing import Optional
 from dotenv import load_dotenv
 from openrouter import OpenRouter
 
-from prompt import MANIM_SYSTEM_PROMPT
-from prompt import build_narration_prompt
+from prompts.manim_prompt import MANIM_SYSTEM_PROMPT, MANIM_USER_TEMPLATE
+from prompts.remotion_prompt import REMOTION_SYSTEM_PROMPT, REMOTION_USER_TEMPLATE
+
 load_dotenv()
 _client = OpenRouter(api_key=os.getenv("OPENROUTER_API_KEY"))
+DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "deepseek/deepseek-v3.2")
+PLANNER_MODEL = os.getenv("PLANNER_MODEL", "openai/gpt-4o-mini")
 
 
-def clean_code(code: str) -> str:
+def clean_code(code: str, language: str = "python") -> str:
     code = code.strip()
-    code = re.sub(r"^```(?:python)?\s*\n?", "", code, flags=re.MULTILINE)
+    if language == "python":
+        code = re.sub(r"^```(?:python)?\s*\n?", "", code, flags=re.MULTILINE)
+    else:
+        code = re.sub(r"^```(?:typescript|tsx|ts|js|jsx)?\s*\n?", "", code, flags=re.MULTILINE)
     code = re.sub(r"\n?```\s*$", "", code)
     return code.strip()
 
@@ -28,95 +34,66 @@ def sanitize_generated_code(code: str) -> str:
     return code.replace(".get_parts_by_tex(", ".get_part_by_tex(")
 
 
-def build_manim_user_message(topic: str, error: Optional[str] = None, previous_code: Optional[str] = None) -> str:
-    msg = f"""Create a complete Manim CE animation for this STEM concept.
-
-TOPIC:
-{topic}
-
-CRITICAL LAYOUT CONTRACT (follow strictly):
-- GOOD: show one main equation/idea at a time in the center; use TransformMatchingTex between steps
-- GOOD: keep a title at the top with .to_edge(UP), and main content at ORIGIN
-- GOOD: if multiple lines are needed, use VGroup(...).arrange(DOWN, buff=0.35).move_to(ORIGIN) and cap at 3 lines visible
-- GOOD: always constrain size: .scale_to_fit_width(11.5) and .scale_to_fit_height(6.0) for any multi-line group or long MathTex
-- GOOD: between sections, clear old objects: self.play(*[FadeOut(m) for m in self.mobjects])
-
-- BAD: stacking many equations vertically so they overflow the frame
-- BAD: placing objects with raw UP*4 / DOWN*4 / RIGHT*7 values
-- BAD: writing new text on top of old text without Transform/FadeOut
-
-The student must be able to follow each step clearly. Every transition must be intentional. No element should ever collide with another.
-Output only raw Python code."""
-    if previous_code:
-        msg += f"\n\nPREVIOUS ATTEMPT (for reference; do NOT rewrite everything unless necessary):\n{previous_code}"
-    if error:
-        msg += f"\n\nRENDER ERROR TO FIX (fix only what is broken):\n{error}"
-    return msg
-
-
-def generate_manim_code(topic: str, model: str, error: Optional[str] = None, previous_code: Optional[str] = None, log=print) -> str:
-    log("Step 1/6: Sending prompt to LLM for Manim code generation...")
-    t0 = time.time()
-    response = _client.chat.send(
-        model=model,
-        messages=[
-            {"role": "system", "content": MANIM_SYSTEM_PROMPT},
-            {"role": "user", "content": build_manim_user_message(topic, error=error, previous_code=previous_code)},
-        ],
-    )
-    code = sanitize_generated_code(clean_code(response.choices[0].message.content))
-    if "from manim import" not in code:
-        raise RuntimeError("Invalid code: missing manim import")
-    log(f"  ✔️ Manim code generated in {time.time()-t0:.1f}s")
-    return code
-
-
-def extract_visual_beats_from_code(code: str, max_items: int = 18) -> str:
-    beats: list[str] = []
-    for match in re.finditer(r"(?:Text|Tex|MathTex)\(\s*r?\"([^\"]+)\"", code):
-        text = match.group(1).strip().replace("\\\\", "\\")
-        if text:
-            beats.append(f"Show: {text}")
-        if len(beats) >= max_items:
-            break
-    for match in re.finditer(r"self\.play\((.*?)\)", code):
-        action = match.group(1)
-        if "TransformMatchingTex" in action:
-            beats.append("Transform equation to next step")
-        elif "Write(" in action:
-            beats.append("Write new expression")
-        elif "Create(" in action:
-            beats.append("Create visual object")
-        elif "FadeOut(" in action:
-            beats.append("Clear previous object")
-        elif "FadeIn(" in action:
-            beats.append("Reveal next object")
-        if len(beats) >= max_items:
-            break
-    if not beats:
-        return "No explicit visual beats parsed."
-    return "\n".join(f"- {b}" for b in beats)
-
-
-
-def generate_narration_script(
-    topic: str,
-    code: str,
-    video_duration: float,
-    output_dir: str,
-    model: str = "deepseek/deepseek-v3.2",
-    log=print,
-) -> str:
-    log("Step 3/6: Generating narration script...")
-    visual_beats = extract_visual_beats_from_code(code)
+def generate_visual_plan(topic: str, engine: str, duration: int = 60, model: str = PLANNER_MODEL) -> str:
     response = _client.chat.send(
         model=model,
         messages=[
             {
                 "role": "system",
-                "content": "You write concise STEM narration scripts for animations. Keep pacing natural, concept-first, and avoid a boring filler tone.",
+                "content": (
+                    f"You are a {engine} video planner for STEM/education content. "
+                    "Describe exactly what should appear on screen at each moment. "
+                    "Be specific about shapes, positions, colors, and timing. "
+                    "Format as a numbered sequence of visual moments."
+                ),
             },
-            {"role": "user", "content": build_narration_prompt(topic, video_duration, visual_beats)},
+            {
+                "role": "user",
+                "content": f"Plan a {duration}-second educational video about: {topic}",
+            },
+        ],
+    )
+    return response.choices[0].message.content.strip()
+
+
+def build_narration_prompt(topic: str, video_duration: float, visual_beats: str) -> str:
+    target_words = int(video_duration * 140 / 60)
+    return f"""Write a narration script for this animation:
+
+TOPIC: {topic}
+
+VISUAL SEQUENCE:
+{visual_beats}
+
+Rules:
+- Target length: about {video_duration:.0f} seconds
+- Speaking rate: ~140 words/minute (~{target_words} words)
+- One sentence roughly maps to one visual beat
+- Plain text only — no markdown, bullets, or stage directions
+- Do not say "in this video" or "as you can see"
+"""
+
+
+def generate_narration_script(
+    topic: str,
+    visual_plan: str,
+    video_duration: float,
+    output_dir: str,
+    model: str = DEFAULT_MODEL,
+    log=print,
+) -> str:
+    log("Generating narration script...")
+    response = _client.chat.send(
+        model=model,
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "You write concise STEM narration scripts for animations. "
+                    "Keep pacing natural, concept-first, and avoid filler."
+                ),
+            },
+            {"role": "user", "content": build_narration_prompt(topic, video_duration, visual_plan)},
         ],
     )
     script = response.choices[0].message.content.strip()
@@ -125,3 +102,80 @@ def generate_narration_script(
         f.write(script + "\n")
     log(f"  ✔️ Narration script saved at {script_path}")
     return script
+
+
+def generate_manim_code(
+    topic: str,
+    model: str = DEFAULT_MODEL,
+    visual_plan: str = "",
+    duration: int = 60,
+    complexity: str = "medium",
+    error: Optional[str] = None,
+    previous_code: Optional[str] = None,
+    log=print,
+) -> str:
+    log("Generating Manim code...")
+    t0 = time.time()
+    user_msg = MANIM_USER_TEMPLATE.format(
+        topic=topic,
+        visual_plan=visual_plan or "Auto-detect best educational visual sequence.",
+        duration=duration,
+        complexity=complexity,
+    )
+    if previous_code:
+        user_msg += f"\n\nPREVIOUS ATTEMPT:\n{previous_code}"
+    if error:
+        user_msg += f"\n\nRENDER ERROR TO FIX (fix only what is broken):\n{error}"
+
+    response = _client.chat.send(
+        model=model,
+        messages=[
+            {"role": "system", "content": MANIM_SYSTEM_PROMPT},
+            {"role": "user", "content": user_msg},
+        ],
+    )
+    code = sanitize_generated_code(clean_code(response.choices[0].message.content, "python"))
+    if "from manim import" not in code:
+        raise RuntimeError("Invalid Manim code: missing manim import")
+    if "class Scene" not in code:
+        raise RuntimeError("Invalid Manim code: class must be named Scene")
+    log(f"  ✔️ Manim code generated in {time.time() - t0:.1f}s")
+    return code
+
+
+def generate_remotion_code(
+    topic: str,
+    model: str = DEFAULT_MODEL,
+    visual_plan: str = "",
+    duration: int = 60,
+    complexity: str = "medium",
+    error: Optional[str] = None,
+    previous_code: Optional[str] = None,
+    log=print,
+) -> str:
+    log("Generating Remotion code...")
+    t0 = time.time()
+    user_msg = REMOTION_USER_TEMPLATE.format(
+        topic=topic,
+        duration=duration,
+        frames=duration * 30,
+        complexity=complexity,
+        visual_plan=visual_plan or "Auto-detect best educational visual sequence.",
+    )
+    if previous_code:
+        user_msg += f"\n\nPREVIOUS ATTEMPT:\n{previous_code}"
+    if error:
+        user_msg += f"\n\nRENDER ERROR TO FIX (fix only what is broken):\n{error}"
+
+    response = _client.chat.send(
+        model=model,
+        messages=[
+            {"role": "system", "content": REMOTION_SYSTEM_PROMPT},
+            {"role": "user", "content": user_msg},
+        ],
+    )
+    code = clean_code(response.choices[0].message.content, "typescript")
+    if "MainComposition" not in code:
+        raise RuntimeError("Invalid Remotion code: missing MainComposition")
+    log(f"  ✔️ Remotion code generated in {time.time() - t0:.1f}s")
+    return code

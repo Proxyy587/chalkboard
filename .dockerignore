@@ -13,3 +13,8 @@ outputs/
 media/
 temp/
 agent-transcripts/
+client/
+remotion-src/node_modules/
+.env
+*.md
+!DEPLOY.md

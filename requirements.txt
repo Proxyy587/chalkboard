@@ -1,12 +1,9 @@
 fastapi
 uvicorn
-requests
 python-dotenv
 openrouter
 pydantic
 manim
-celery 
-redis
-ffmpeg
 edge-tts
 boto3
+httpx

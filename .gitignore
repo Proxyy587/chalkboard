@@ -5,3 +5,6 @@ outputs
 temp
 __pycache__
 .DS_Store
+remotion-src/node_modules/
+client/node_modules/
+client/.next/
