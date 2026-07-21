@@ -34,8 +34,10 @@ def route_prompt(
     forced = (forced_engine or "auto").strip().lower()
 
     if forced in {"manim", "remotion"}:
-        duration = preferred_duration if preferred_duration else 55
-        duration = max(20, min(90, int(duration)))
+        if preferred_duration:
+            duration = max(15, min(180, int(preferred_duration)))
+        else:
+            duration = None  # planner picks freely
         return {
             "engine": forced,
             "reason": "user specified",
@@ -56,22 +58,17 @@ def route_prompt(
     if engine not in {"manim", "remotion"}:
         engine = "manim"
 
-    # If caller specified duration, honor it. Otherwise let router decide freely.
     if preferred_duration:
-        duration = max(15, min(120, int(preferred_duration)))
+        duration = max(15, min(180, int(preferred_duration)))
     else:
         duration = int(data.get("duration", 55) or 55)
-        duration = max(25, min(90, duration))
+        duration = max(20, min(120, duration))
 
     complexity = str(data.get("complexity", "medium")).lower()
     if complexity not in {"simple", "medium", "complex"}:
         complexity = "medium"
-
-    # Prefer simpler plans for reliability (especially Manim)
     if complexity == "complex":
         complexity = "medium"
-    if engine == "manim" and complexity == "medium" and duration <= 45:
-        complexity = "simple"
 
     return {
         "engine": engine,

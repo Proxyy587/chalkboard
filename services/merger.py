@@ -39,12 +39,23 @@ def merge_video_audio_captions(
     final_path = video_path.replace(".mp4", "_final.mp4")
 
     atempo = 1.0
+    pad_video_sec = 0.0
     if audio_duration > 0 and video_duration > 0:
         ratio = audio_duration / video_duration
-        if 0.85 <= ratio <= 1.15:
+        if 0.80 <= ratio <= 1.20:
+            atempo = max(0.5, min(2.0, ratio))
+        elif ratio > 1.20:
+            # Audio longer — pad video with frozen last frame
+            pad_video_sec = audio_duration - video_duration
+            atempo = 1.0
+        else:
+            # Video longer — speed up narration to fit
             atempo = max(0.5, min(2.0, ratio))
 
-    audio_filter = f"atempo={atempo:.4f}" if abs(atempo - 1.0) > 0.01 else None
+    audio_filter_parts = []
+    if abs(atempo - 1.0) > 0.01:
+        audio_filter_parts.append(f"atempo={atempo:.4f}")
+    audio_filter = ",".join(audio_filter_parts) if audio_filter_parts else None
 
     video_abs = os.path.abspath(video_path)
     audio_abs = os.path.abspath(audio_path)
@@ -54,18 +65,17 @@ def merge_video_audio_captions(
     final_abs = os.path.abspath(final_path)
 
     def _run_audio_merge(include_soft_subs: bool) -> None:
-        cmd = [
-            "ffmpeg",
-            "-y",
-            "-i",
-            video_abs,
-            "-i",
-            audio_abs,
-        ]
+        cmd = ["ffmpeg", "-y"]
+        if pad_video_sec > 0.05:
+            # Clone last frame to extend video to match narration length
+            vf = f"tpad=stop_mode=clone:stop_duration={pad_video_sec:.3f}"
+            cmd.extend(["-i", video_abs, "-vf", vf])
+        else:
+            cmd.extend(["-i", video_abs])
+        cmd.extend(["-i", audio_abs])
         if include_soft_subs and srt_abs:
             cmd.extend(["-i", srt_abs])
 
-        # Map Remotion/Manim video + narration audio only.
         cmd.extend(["-map", "0:v:0", "-map", "1:a:0"])
         if include_soft_subs and srt_abs:
             cmd.extend(["-map", "2:0"])
@@ -77,11 +87,15 @@ def merge_video_audio_captions(
             [
                 "-shortest",
                 "-c:v",
-                "copy",
+                "libx264" if pad_video_sec > 0.05 else "copy",
+                "-preset",
+                "fast",
+                "-crf",
+                "20",
                 "-c:a",
                 "aac",
                 "-b:a",
-                "128k",
+                "192k",
                 "-ar",
                 "48000",
                 "-ac",

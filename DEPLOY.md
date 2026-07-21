@@ -106,6 +106,8 @@ KEEP_LOCAL_OUTPUTS=false
 CACHE_TTL_SECONDS=21600
 RATE_LIMIT_COUNT=20
 RATE_LIMIT_WINDOW_SECONDS=600
+MANIM_QUALITY=medium
+# low | medium | high | 4k — medium = 720p30, high = 1080p60
 ```
 
 ### Where to get each value

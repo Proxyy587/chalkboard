@@ -1,7 +1,8 @@
+import json
 import os
 import re
 import time
-from typing import Optional
+from typing import Any, Optional
 
 from dotenv import load_dotenv
 from openrouter import OpenRouter
@@ -11,6 +12,8 @@ from prompts.manim_prompt import (
     MANIM_SYSTEM_PROMPT,
     MANIM_USER_TEMPLATE,
 )
+from prompts.narration_prompt import NARRATION_SYSTEM_PROMPT, NARRATION_USER_TEMPLATE
+from prompts.planner_prompt import VISUAL_PLANNER_SYSTEM_PROMPT, VISUAL_PLANNER_USER_TEMPLATE
 from prompts.remotion_prompt import REMOTION_SYSTEM_PROMPT, REMOTION_USER_TEMPLATE
 
 load_dotenv()
@@ -30,7 +33,6 @@ def clean_code(code: str, language: str = "python") -> str:
 
 
 def _strip_method_calls(code: str, method: str) -> str:
-    """Replace `obj.method(...)` with `obj`, respecting nested parentheses."""
     needle = f".{method}("
     out: list[str] = []
     i = 0
@@ -39,13 +41,11 @@ def _strip_method_calls(code: str, method: str) -> str:
         if idx < 0:
             out.append(code[i:])
             break
-        # Find start of identifier before the dot
         start = idx
         while start > 0 and (code[start - 1].isalnum() or code[start - 1] == "_"):
             start -= 1
         out.append(code[i:start])
-        out.append(code[start:idx])  # the object name
-        # Skip balanced (...) after method(
+        out.append(code[start:idx])
         pos = idx + len(needle)
         depth = 1
         while pos < len(code) and depth:
@@ -55,7 +55,6 @@ def _strip_method_calls(code: str, method: str) -> str:
             elif ch == ")":
                 depth -= 1
             pos += 1
-        # Also drop trailing [0] if present (legacy get_parts_by_tex usage)
         if code[pos : pos + 3] == "[0]":
             pos += 3
         elif code[pos : pos + 5] == "[ 0 ]":
@@ -65,12 +64,45 @@ def _strip_method_calls(code: str, method: str) -> str:
 
 
 def sanitize_generated_code(code: str) -> str:
-    """Deterministic fixes for common LLM Manim mistakes."""
-    # get_part(s)_by_tex often returns None → next_to crashes with NoneType.
-    # Rewrite every call to the parent mobject so arrows/boxes still target something valid.
     code = _strip_method_calls(code, "get_parts_by_tex")
     code = _strip_method_calls(code, "get_part_by_tex")
     return code
+
+
+def _parse_json_object(text: str) -> dict[str, Any]:
+    text = text.strip()
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        match = re.search(r"\{[\s\S]*\}", text)
+        if not match:
+            raise
+        return json.loads(match.group(0))
+
+
+def format_beat_sheet_for_prompt(plan: dict[str, Any]) -> str:
+    """Human-readable beat block for code/narration prompts."""
+    lines = [
+        f"Title: {plan.get('title', 'Untitled')}",
+        f"Target duration: {plan.get('target_duration_sec', '?')}s",
+        f"Style: {plan.get('style_notes', '')}",
+        "",
+    ]
+    for beat in plan.get("beats", []):
+        bid = beat.get("id", "?")
+        dur = beat.get("duration_sec", "?")
+        lines.append(f"--- BEAT {bid} ({dur}s) ---")
+        lines.append(f"Visual: {beat.get('visual', '')}")
+        lines.append(f"Narration: {beat.get('narration', '')}")
+        lines.append("")
+    return "\n".join(lines).strip()
+
+
+def beat_sheet_target_duration(plan: dict[str, Any]) -> float:
+    beats = plan.get("beats") or []
+    if beats:
+        return float(sum(float(b.get("duration_sec", 0)) for b in beats))
+    return float(plan.get("target_duration_sec") or 55)
 
 
 def generate_visual_plan(
@@ -78,95 +110,109 @@ def generate_visual_plan(
     engine: str,
     duration: Optional[int] = None,
     model: str = PLANNER_MODEL,
-) -> str:
+    log=print,
+) -> dict[str, Any]:
+    """Return structured beat sheet (dict), not plain text."""
     if duration:
-        duration_line = f"Plan about a {duration}-second educational video."
+        duration_line = (
+            f"User requested ~{duration}s total. "
+            f"Beat durations must sum to {duration}s (±2s)."
+        )
     else:
         duration_line = (
-            "Choose a natural duration (roughly 30–75 seconds) based on topic complexity. "
-            "Do not force an exact length."
+            "User did NOT specify duration — choose the best length (20–120s) "
+            "for this topic and set target_duration_sec accordingly."
         )
+
+    log("Generating beat-sheet visual plan...")
     response = _client.chat.send(
         model=model,
         messages=[
-            {
-                "role": "system",
-                "content": (
-                    f"You are a {engine} video planner for STEM/education content. "
-                    "Describe exactly what should appear on screen at each moment. "
-                    "Be specific about shapes, positions, colors, and timing. "
-                    "Keep plans SIMPLE and crash-proof for Manim "
-                    "(no highlighting individual tex substrings with arrows). "
-                    "Format as a numbered sequence of visual moments."
-                ),
-            },
+            {"role": "system", "content": VISUAL_PLANNER_SYSTEM_PROMPT},
             {
                 "role": "user",
-                "content": f"{duration_line}\n\nTopic: {topic}",
+                "content": VISUAL_PLANNER_USER_TEMPLATE.format(
+                    topic=topic,
+                    engine=engine,
+                    duration_line=duration_line,
+                ),
             },
         ],
     )
-    return response.choices[0].message.content.strip()
+    raw = response.choices[0].message.content.strip()
+    plan = _parse_json_object(raw)
 
+    beats = plan.get("beats") or []
+    if len(beats) < 2:
+        raise RuntimeError("Visual plan missing beats")
 
-def build_narration_prompt(topic: str, video_duration: float, visual_beats: str) -> str:
-    target_words = int(video_duration * 140 / 60)
-    return f"""Write a narration script for this animation:
+    # Normalize beat ids
+    for i, beat in enumerate(beats, start=1):
+        beat["id"] = i
+        beat["duration_sec"] = float(beat.get("duration_sec", 5))
 
-TOPIC: {topic}
+    if duration:
+        plan["target_duration_sec"] = int(duration)
+    else:
+        plan["target_duration_sec"] = int(
+            plan.get("target_duration_sec") or beat_sheet_target_duration(plan)
+        )
 
-VISUAL SEQUENCE:
-{visual_beats}
-
-Rules:
-- Target length: about {video_duration:.0f} seconds
-- Speaking rate: ~140 words/minute (~{target_words} words)
-- One sentence roughly maps to one visual beat
-- Plain text only — no markdown, bullets, or stage directions
-- Do not say "in this video" or "as you can see"
-"""
+    log(f"  ✔️ Beat sheet: {len(beats)} beats, ~{plan['target_duration_sec']}s")
+    return plan
 
 
 def generate_narration_script(
     topic: str,
-    visual_plan: str,
-    video_duration: float,
-    output_dir: str,
+    visual_plan: dict[str, Any],
+    target_duration: Optional[float] = None,
+    output_dir: str = ".",
     model: str = DEFAULT_MODEL,
     log=print,
 ) -> str:
-    log("Generating narration script...")
+    """Polish beat narrations into one script aligned to target duration."""
+    log("Generating narration script from beat sheet...")
+    duration = target_duration or beat_sheet_target_duration(visual_plan)
+    target_words = int(duration * 2.3)
+
+    beat_lines = []
+    for beat in visual_plan.get("beats", []):
+        beat_lines.append(
+            f"Beat {beat.get('id')} ({beat.get('duration_sec')}s): {beat.get('narration', '')}"
+        )
+
+    user_msg = NARRATION_USER_TEMPLATE.format(
+        topic=topic,
+        target_duration=duration,
+        target_words=target_words,
+        beat_narration_block="\n".join(beat_lines),
+    )
+
     response = _client.chat.send(
         model=model,
         messages=[
-            {
-                "role": "system",
-                "content": (
-                    "You write concise STEM narration scripts for animations. "
-                    "Keep pacing natural, concept-first, and avoid filler."
-                ),
-            },
-            {"role": "user", "content": build_narration_prompt(topic, video_duration, visual_plan)},
+            {"role": "system", "content": NARRATION_SYSTEM_PROMPT},
+            {"role": "user", "content": user_msg},
         ],
     )
     script = response.choices[0].message.content.strip()
     script_path = os.path.join(output_dir, "narration_script.txt")
     with open(script_path, "w", encoding="utf-8") as f:
         f.write(script + "\n")
-    log(f"  ✔️ Narration script saved at {script_path}")
+    log(f"  ✔️ Narration script saved ({len(script.split())} words)")
     return script
 
 
 def _duration_text(duration: Optional[int]) -> str:
     if duration:
-        return f"about {duration} seconds (flexible ±20%)"
-    return "choose a natural length for the topic (typically 30–75s)"
+        return f"exactly ~{duration} seconds (beat timings must sum to this)"
+    return "match the beat sheet target_duration_sec — full creative freedom on pacing"
 
 
 def generate_manim_code(
     topic: str,
     model: str = DEFAULT_MODEL,
-    visual_plan: str = "",
+    visual_plan: dict[str, Any] | str = "",
     duration: Optional[int] = None,
     complexity: str = "medium",
     error: Optional[str] = None,
@@ -175,23 +221,28 @@ def generate_manim_code(
 ) -> str:
     log("Generating Manim code...")
     t0 = time.time()
+    if isinstance(visual_plan, dict):
+        plan_text = format_beat_sheet_for_prompt(visual_plan)
+        if duration is None:
+            duration = int(visual_plan.get("target_duration_sec") or beat_sheet_target_duration(visual_plan))
+    else:
+        plan_text = str(visual_plan)
+
     user_msg = MANIM_USER_TEMPLATE.format(
         topic=topic,
-        visual_plan=visual_plan or "Auto-detect best educational visual sequence. Keep it simple.",
+        visual_plan=plan_text,
         duration_text=_duration_text(duration),
         complexity=complexity,
     )
     if previous_code:
-        # On retries, send only a truncated previous attempt to leave room for the fix
         trimmed = previous_code if len(previous_code) < 6000 else previous_code[:6000] + "\n# ... truncated ..."
         user_msg += f"\n\nPREVIOUS ATTEMPT:\n{trimmed}"
     if error:
-        user_msg += f"\n\nRENDER ERROR TO FIX (fix only what is broken):\n{error[-2500:]}"
-        user_msg += f"\n{MANIM_ERROR_HINTS}"
+        user_msg += f"\n\nRENDER ERROR TO FIX:\n{error[-2500:]}\n{MANIM_ERROR_HINTS}"
         if "NoneType" in error and "next_to" in error:
             user_msg += (
-                "\nSPECIFIC FIX REQUIRED: Remove ALL get_part_by_tex / next_to(part) patterns. "
-                "Highlight whole MathTex with SurroundingRectangle instead."
+                "\nRemove ALL get_part_by_tex / next_to(part). "
+                "Use SurroundingRectangle on whole MathTex."
             )
 
     response = _client.chat.send(
@@ -213,7 +264,7 @@ def generate_manim_code(
 def generate_remotion_code(
     topic: str,
     model: str = DEFAULT_MODEL,
-    visual_plan: str = "",
+    visual_plan: dict[str, Any] | str = "",
     duration: Optional[int] = None,
     complexity: str = "medium",
     error: Optional[str] = None,
@@ -222,18 +273,24 @@ def generate_remotion_code(
 ) -> str:
     log("Generating Remotion code...")
     t0 = time.time()
-    dur = duration or 55
+    if isinstance(visual_plan, dict):
+        plan_text = format_beat_sheet_for_prompt(visual_plan)
+        dur = duration or int(visual_plan.get("target_duration_sec") or beat_sheet_target_duration(visual_plan))
+    else:
+        plan_text = str(visual_plan)
+        dur = duration or 55
+
     user_msg = REMOTION_USER_TEMPLATE.format(
         topic=topic,
         duration=dur,
         frames=dur * 30,
         complexity=complexity,
-        visual_plan=visual_plan or "Auto-detect best educational visual sequence.",
+        visual_plan=plan_text,
     )
     if previous_code:
         user_msg += f"\n\nPREVIOUS ATTEMPT:\n{previous_code[:6000]}"
     if error:
-        user_msg += f"\n\nRENDER ERROR TO FIX (fix only what is broken):\n{error[-2500:]}"
+        user_msg += f"\n\nRENDER ERROR TO FIX:\n{error[-2500:]}"
 
     response = _client.chat.send(
         model=model,

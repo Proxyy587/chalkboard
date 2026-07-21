@@ -2,13 +2,15 @@ import asyncio
 import os
 import uuid
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 
 from router import route_prompt
 from services.audio import generate_audio_with_captions
 from services.config import cleanup_job_dir, job_work_dir, keep_local_outputs, storage_policy
 from services.llm import (
     DEFAULT_MODEL,
+    beat_sheet_target_duration,
+    format_beat_sheet_for_prompt,
     generate_manim_code,
     generate_narration_script,
     generate_remotion_code,
@@ -33,7 +35,7 @@ def _r2_object_key(job_id: str, suffix: str = "final") -> str:
 async def _run_manim_pipeline(
     topic: str,
     model: str,
-    visual_plan: str,
+    visual_plan: dict[str, Any],
     duration: Optional[int],
     complexity: str,
     output_dir: str,
@@ -41,9 +43,10 @@ async def _run_manim_pipeline(
 ) -> tuple[Optional[str], Optional[str]]:
     last_error = None
     previous_code = None
+    plan_text = format_beat_sheet_for_prompt(visual_plan)
     for attempt in range(1, max_attempts + 1):
         attempt_complexity = complexity
-        attempt_plan = visual_plan
+        attempt_plan: dict[str, Any] | str = visual_plan
         if attempt >= 2:
             attempt_complexity = "simple"
         if attempt >= 3:
@@ -55,7 +58,7 @@ async def _run_manim_pipeline(
                 "4) TransformMatchingTex to next equation\n"
                 "5) Short conclusion text\n"
                 "NO get_part_by_tex, NO arrows to equation parts, NO next_to on subparts.\n"
-                f"Original plan intent (simplify heavily):\n{visual_plan[:1200]}"
+                f"Original plan intent (simplify heavily):\n{plan_text[:1200]}"
             )
         log(f"\n🧠 Manim attempt {attempt}/{max_attempts} (complexity={attempt_complexity})")
         try:
@@ -85,7 +88,7 @@ async def _run_manim_pipeline(
 async def _run_remotion_pipeline(
     topic: str,
     model: str,
-    visual_plan: str,
+    visual_plan: dict[str, Any],
     duration: int,
     complexity: str,
     job_id: str,
@@ -182,30 +185,51 @@ async def process_topic_async(
         set_status("routing")
         route = route_prompt(topic, forced_engine=engine, preferred_duration=duration)
         chosen_engine = route["engine"]
-        final_duration = int(route["duration"])
+        router_duration = route.get("duration")  # None = AI picks length in beat sheet
         complexity = route.get("complexity", "medium")
         subject = route.get("subject", topic)
         log(
             f"Router chose: {chosen_engine} ({route.get('reason')}), "
-            f"duration={final_duration}s, complexity={complexity}"
+            f"duration={'auto' if router_duration is None else f'{router_duration}s'}, "
+            f"complexity={complexity}"
         )
-        set_status("routing", engine=chosen_engine, duration=final_duration)
+        set_status("routing", engine=chosen_engine, duration=router_duration)
 
+        # 1) Beat-sheet plan (visual + narration + timing)
         set_status("planning", engine=chosen_engine)
         visual_plan = generate_visual_plan(
             subject,
             chosen_engine,
-            duration=final_duration,
+            duration=router_duration,
+            log=log,
         )
-        log(f"Visual plan ready ({len(visual_plan)} chars)")
+        plan_duration = int(beat_sheet_target_duration(visual_plan))
+        log(f"Beat sheet ready: {len(visual_plan.get('beats', []))} beats, ~{plan_duration}s")
 
+        # 2) Narration + TTS BEFORE render so audio length guides animation target
+        set_status("generating_audio", engine=chosen_engine)
+        narration_script = generate_narration_script(
+            topic=subject,
+            visual_plan=visual_plan,
+            target_duration=float(plan_duration),
+            output_dir=work_dir,
+            model=model,
+            log=log,
+        )
+        audio_path, srt_path, audio_duration = await generate_audio_with_captions(
+            narration_script, output_dir=work_dir, log=log
+        )
+        code_duration = int(round(max(plan_duration, audio_duration)))
+        log(f"Audio {audio_duration:.1f}s → code target {code_duration}s")
+
+        # 3) Generate + render video synced to beat sheet + audio length
         set_status("generating_code", engine=chosen_engine)
         if chosen_engine == "remotion":
             video, render_err = await _run_remotion_pipeline(
                 topic=subject,
                 model=model,
                 visual_plan=visual_plan,
-                duration=final_duration,
+                duration=code_duration,
                 complexity=complexity,
                 job_id=job_id,
                 output_dir=work_dir,
@@ -216,7 +240,7 @@ async def process_topic_async(
                 topic=subject,
                 model=model,
                 visual_plan=visual_plan,
-                duration=final_duration,
+                duration=code_duration,
                 complexity=complexity,
                 output_dir=work_dir,
                 max_attempts=max_attempts,
@@ -229,19 +253,7 @@ async def process_topic_async(
             return {"ok": False, "error": err[-4000:], "engine": chosen_engine}
 
         log(f"✅ Base video: {video}")
-        set_status("generating_audio", engine=chosen_engine)
         video_duration = get_media_duration(video)
-        narration_script = generate_narration_script(
-            topic=subject,
-            visual_plan=visual_plan,
-            video_duration=video_duration,
-            output_dir=work_dir,
-            model=model,
-            log=log,
-        )
-        audio_path, srt_path, audio_duration = await generate_audio_with_captions(
-            narration_script, output_dir=work_dir, log=log
-        )
 
         set_status("merging", engine=chosen_engine)
         final_video = merge_video_audio_captions(

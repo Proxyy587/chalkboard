@@ -175,8 +175,8 @@ def render_remotion(
     with open(component_path, "w", encoding="utf-8") as f:
         f.write(tsx_code)
 
-    # Cap duration so Remotion stays snappy (same post audio merge as Manim).
-    duration = max(15, min(int(duration), 75))
+    # Cap duration for Remotion render stability
+    duration = max(15, min(int(duration), 120))
     frames = duration * 30
 
     root_path = os.path.join(REMOTION_SRC, "src", "Root.tsx")

@@ -32,6 +32,11 @@ def _manim_cmd() -> list[str]:
     return ["manim"]
 
 
+def _manim_quality_flag() -> str:
+    q = (os.getenv("MANIM_QUALITY") or "medium").strip().lower()
+    return {"low": "-ql", "medium": "-qm", "high": "-qh", "4k": "-qk"}.get(q, "-qm")
+
+
 def render_video(code: str, output_dir: str, log=print) -> tuple[Optional[str], Optional[str]]:
     log("Step 2/6: Starting Manim rendering...")
     job_id = str(uuid.uuid4())
@@ -40,11 +45,12 @@ def render_video(code: str, output_dir: str, log=print) -> tuple[Optional[str], 
     with open(file_path, "w", encoding="utf-8") as f:
         f.write(code)
 
+    quality = _manim_quality_flag()
     cmd = [
         *_manim_cmd(),
         file_path,
         "Scene",
-        "-ql",
+        quality,
         "--media_dir",
         output_dir,
         "-o",

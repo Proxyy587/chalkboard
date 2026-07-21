@@ -17,8 +17,8 @@ class ChatRequest(BaseModel):
     duration: Optional[int] = Field(
         default=None,
         ge=15,
-        le=120,
-        description="Optional. If omitted, the router chooses a natural duration.",
+        le=180,
+        description="Optional. If omitted, the router and beat sheet choose a natural duration.",
     )
 
 
@@ -31,8 +31,8 @@ class VideoRequest(BaseModel):
     duration: Optional[int] = Field(
         default=None,
         ge=15,
-        le=120,
-        description="Optional target seconds. If omitted, router chooses freely (~25–90s).",
+        le=180,
+        description="Optional target seconds. If omitted, AI chooses freely (20–120s).",
     )
 
 
