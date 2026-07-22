@@ -2,6 +2,8 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
+from schema.storage import VideoStorageRequest
+
 
 class Message(BaseModel):
     role: str
@@ -33,6 +35,10 @@ class VideoRequest(BaseModel):
         ge=15,
         le=180,
         description="Optional target seconds. If omitted, AI chooses freely (20–120s).",
+    )
+    storage: Optional[VideoStorageRequest] = Field(
+        default=None,
+        description="Optional upload destination: inline R2/S3 creds or saved integration_id",
     )
 
 

@@ -14,6 +14,25 @@ export function getChalkboardApiBase(): string {
   return "http://127.0.0.1:8000";
 }
 
+/** User API key from Settings (browser localStorage). */
+export function getStoredApiKey(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("chalk_api_key");
+}
+
+export function setStoredApiKey(key: string | null) {
+  if (typeof window === "undefined") return;
+  if (key) localStorage.setItem("chalk_api_key", key);
+  else localStorage.removeItem("chalk_api_key");
+}
+
+function apiHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const key = getStoredApiKey();
+  if (key) headers["x-api-key"] = key;
+  return headers;
+}
+
 export type ApiMessage = { role: string; content: string };
 
 export type JobCreateResponse = {
@@ -52,7 +71,7 @@ export async function createLectureJob(
   const base = getChalkboardApiBase();
   const res = await fetch(`${base}/generate-lecture`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: apiHeaders(),
     body: JSON.stringify({
       messages,
       model: model.trim() || DEFAULT_LECTURE_MODEL,

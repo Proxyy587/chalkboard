@@ -15,7 +15,10 @@ from schema.chat import (
     JobStatusResponse,
     VideoRequest,
 )
+from services.api_key_auth import is_user_api_key, validate_user_api_key
 from services.llm import DEFAULT_MODEL
+from services.storage_resolver import resolve_job_storage
+from services.user_storage import UserStorageConfig
 from worker import process_topic_async
 
 load_dotenv()
@@ -41,12 +44,43 @@ REQUEST_LOG: dict[str, deque] = defaultdict(deque)
 API_KEY = os.getenv("CLARITY_API_KEY", "").strip()
 
 
-def _require_api_key(request: Request):
-    if not API_KEY:
-        return
-    provided = request.headers.get("x-api-key") or request.headers.get("authorization", "").removeprefix("Bearer ").strip()
-    if provided != API_KEY:
-        raise HTTPException(status_code=401, detail="Invalid or missing API key.")
+def _extract_api_key(request: Request) -> str:
+    return (
+        request.headers.get("x-api-key")
+        or request.headers.get("authorization", "").removeprefix("Bearer ").strip()
+    )
+
+
+def _require_api_key(request: Request) -> dict | None:
+    """
+    Authenticate request. Returns auth metadata dict or None for legacy/dev mode.
+    Raises 401 if key required but invalid.
+    """
+    provided = _extract_api_key(request)
+    client_ip = request.client.host if request.client else None
+
+    # User-issued chalk_* keys (database)
+    if provided and is_user_api_key(provided):
+        ctx = validate_user_api_key(provided, client_ip=client_ip)
+        if not ctx:
+            raise HTTPException(status_code=401, detail="Invalid or revoked API key.")
+        auth = {
+            "type": "user",
+            "user_id": ctx.user_id,
+            "api_key_id": ctx.api_key_id,
+            "plan": ctx.plan,
+        }
+        request.state.auth = auth
+        return auth
+
+    # Legacy single shared key (optional)
+    if API_KEY:
+        if provided != API_KEY:
+            raise HTTPException(status_code=401, detail="Invalid or missing API key.")
+        return {"type": "legacy"}
+
+    # Dev mode: no key configured
+    return None
 
 
 def _extract_topic(messages) -> str:
@@ -72,7 +106,15 @@ def _rate_limit_or_raise(request: Request):
     q.append(now)
 
 
-def _run_job(job_id: str, topic: str, model: str, engine: str, duration: int | None):
+def _run_job(
+    job_id: str,
+    topic: str,
+    model: str,
+    engine: str,
+    duration: int | None,
+    user_id: str | None = None,
+    job_storage: UserStorageConfig | None = None,
+):
     def status_cb(status: str, extra: dict):
         JOBS[job_id]["status"] = status
         if extra:
@@ -87,6 +129,8 @@ def _run_job(job_id: str, topic: str, model: str, engine: str, duration: int | N
                 engine=engine,
                 duration=duration,
                 job_id=job_id,
+                user_id=user_id,
+                storage_override=job_storage,
                 status_cb=status_cb,
             )
         )
@@ -115,7 +159,14 @@ def _run_job(job_id: str, topic: str, model: str, engine: str, duration: int | N
         JOBS[job_id]["error"] = str(exc)
 
 
-def _enqueue(topic: str, model: str, engine: str, duration: int | None) -> JobCreateResponse:
+def _enqueue(
+    topic: str,
+    model: str,
+    engine: str,
+    duration: int | None,
+    user_id: str | None = None,
+    job_storage: UserStorageConfig | None = None,
+) -> JobCreateResponse:
     model = (model or DEFAULT_MODEL).strip() or DEFAULT_MODEL
     engine = (engine or "auto").strip().lower() or "auto"
     # Keep None as "auto duration" — do not force 60.
@@ -152,8 +203,13 @@ def _enqueue(topic: str, model: str, engine: str, duration: int | None) -> JobCr
         "model": model,
         "engine": engine,
         "duration": duration,
+        "user_id": user_id,
     }
-    asyncio.create_task(asyncio.to_thread(_run_job, job_id, topic, model, engine, duration))
+    asyncio.create_task(
+        asyncio.to_thread(
+            _run_job, job_id, topic, model, engine, duration, user_id, job_storage
+        )
+    )
     return JobCreateResponse(job_id=job_id, status="queued", cached=False, video_url=None, engine=None)
 
 
@@ -190,13 +246,20 @@ async def health():
 
 @app.post("/video/request", response_model=JobCreateResponse)
 async def request_video(req: VideoRequest, http_request: Request):
-    _require_api_key(http_request)
+    auth = _require_api_key(http_request)
     _rate_limit_or_raise(http_request)
+    user_id = auth.get("user_id") if auth else None
+    try:
+        job_storage = resolve_job_storage(req.storage, user_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return _enqueue(
         topic=req.prompt.strip(),
         model=req.model or DEFAULT_MODEL,
         engine=req.engine or "auto",
-        duration=req.duration,  # None => router chooses
+        duration=req.duration,
+        user_id=user_id,
+        job_storage=job_storage,
     )
 
 
@@ -219,14 +282,16 @@ async def video_status(job_id: str):
 @app.post("/generate-lecture", response_model=JobCreateResponse)
 async def generate_chalks(request: ChatRequest, http_request: Request):
     """Backward-compatible chalkboard endpoint."""
-    _require_api_key(http_request)
+    auth = _require_api_key(http_request)
     _rate_limit_or_raise(http_request)
     topic = _extract_topic(request.messages)
+    user_id = auth.get("user_id") if auth else None
     return _enqueue(
         topic=topic,
         model=request.model or DEFAULT_MODEL,
         engine=request.engine or "auto",
-        duration=request.duration,  # None => router chooses
+        duration=request.duration,
+        user_id=user_id,
     )
 
 

@@ -38,13 +38,18 @@ export function Sidebar() {
           <Plus className="size-3.5 shrink-0" strokeWidth={1.5} />
           NEW_LECTURE
         </Link>
-        <button
-          type="button"
-          className="flex w-full items-center gap-2 border border-transparent px-3 py-2.5 text-left text-[10px] tracking-[0.14em] text-zinc-600 transition-colors duration-200 hover:border-white/10 hover:text-zinc-400"
+        <Link
+          href="/settings"
+          className={cn(
+            "flex items-center gap-2 border px-3 py-2.5 text-[10px] tracking-[0.14em] transition-colors duration-200",
+            pathname.startsWith("/settings")
+              ? "border-white/10 bg-white/[0.04] text-[#dfff00]"
+              : "border-transparent text-zinc-500 hover:border-white/10 hover:bg-white/[0.02] hover:text-zinc-300"
+          )}
         >
           <Settings className="size-3.5 shrink-0" strokeWidth={1.5} />
           SETTINGS
-        </button>
+        </Link>
       </div>
 
       <div className="relative mx-2 mb-2 mt-1 flex min-h-0 flex-1 flex-col border border-white/[0.07] bg-black/25 backdrop-blur-[1px]">

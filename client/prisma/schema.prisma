@@ -1,0 +1,140 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  apiKeys             ApiKey[]
+  storageIntegrations StorageIntegration[]
+
+  @@map("users")
+}
+
+model ApiKey {
+  id     String @id @default(cuid())
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name    String
+  prefix  String
+  keyHash String @unique @map("key_hash")
+
+  type        ApiKeyType @default(SECRET)
+  environment ApiKeyEnv  @default(LIVE)
+  version     Int        @default(1)
+
+  plan        ApiKeyPlan @default(FREE)
+  credits     Decimal    @default(0) @db.Decimal(12, 6)
+  creditLimit Decimal?   @map("credit_limit") @db.Decimal(12, 6)
+
+  usageCount Int       @default(0) @map("usage_count")
+  lastUsedAt DateTime? @map("last_used_at")
+  lastUsedIp String?   @map("last_used_ip")
+
+  rateLimit  Int?     @map("rate_limit")
+  allowedIps String[] @default([]) @map("allowed_ips")
+  scopes     String[] @default(["video:generate", "video:read"])
+  expiresAt  DateTime? @map("expires_at")
+
+  isActive  Boolean   @default(true) @map("is_active")
+  revokedAt DateTime? @map("revoked_at")
+  revokedBy String?   @map("revoked_by")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  usageLogs ApiKeyUsageLog[]
+
+  @@index([keyHash])
+  @@index([userId])
+  @@index([prefix])
+  @@map("api_keys")
+}
+
+model ApiKeyUsageLog {
+  id       String @id @default(cuid())
+  apiKeyId String @map("api_key_id")
+  apiKey   ApiKey @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+
+  endpoint  String
+  method    String
+  creditsUsed Decimal @default(0) @map("credits_used") @db.Decimal(12, 6)
+  model       String?
+  inputTokens  Int?   @map("input_tokens")
+  outputTokens Int?   @map("output_tokens")
+  statusCode  Int     @map("status_code")
+  durationMs  Int     @map("duration_ms")
+  ipAddress   String? @map("ip_address")
+  userAgent   String? @map("user_agent")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([apiKeyId])
+  @@index([createdAt])
+  @@index([apiKeyId, createdAt])
+  @@map("api_key_usage_logs")
+}
+
+model StorageIntegration {
+  id     String @id @default(cuid())
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name     String
+  provider StorageProvider
+
+  encryptedConfig String @map("encrypted_config")
+
+  bucketName String  @map("bucket_name")
+  region     String?
+  publicUrl  String? @map("public_url")
+
+  isActive   Boolean   @default(true) @map("is_active")
+  isVerified Boolean   @default(false) @map("is_verified")
+  verifiedAt DateTime? @map("verified_at")
+  lastUsedAt DateTime? @map("last_used_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, provider, bucketName])
+  @@index([userId])
+  @@map("storage_integrations")
+}
+
+enum ApiKeyType {
+  SECRET
+  PUBLIC
+}
+
+enum ApiKeyEnv {
+  LIVE
+  TEST
+}
+
+enum ApiKeyPlan {
+  FREE
+  STUDENT
+  PRO
+  CREATOR
+  ENTERPRISE
+}
+
+enum StorageProvider {
+  S3
+  R2
+  UPLOADTHING
+  BACKBLAZE
+  MINIO
+  CUSTOM_S3
+}

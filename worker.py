@@ -20,6 +20,7 @@ from services.merger import merge_video_audio_captions
 from services.remotion_renderer import render_remotion
 from services.renderer import get_media_duration, render_video
 from services.storage import upload_to_r2
+from services.user_storage import UserStorageConfig
 
 
 def log(msg: str):
@@ -133,12 +134,20 @@ def _upload_and_maybe_cleanup(
     local_path: str,
     object_key: str,
     work_dir: str,
+    user_id: Optional[str] = None,
+    storage_override: Optional[UserStorageConfig] = None,
 ) -> str:
-    """Upload to R2, then wipe the job work dir on VPS."""
+    """Upload to R2/S3, then wipe the job work dir on VPS."""
     if not local_path or not os.path.isfile(local_path):
         raise FileNotFoundError(f"Nothing to upload: {local_path}")
     try:
-        url = upload_to_r2(local_path, object_key=object_key, log=log)
+        url = upload_to_r2(
+            local_path,
+            object_key=object_key,
+            log=log,
+            user_id=user_id,
+            storage_override=storage_override,
+        )
     except Exception as e:
         # Still free disk on VPS even if upload fails
         cleanup_job_dir(work_dir, log=log)
@@ -158,6 +167,8 @@ async def process_topic_async(
     engine: str = "auto",
     duration: Optional[int] = None,
     job_id: Optional[str] = None,
+    user_id: Optional[str] = None,
+    storage_override: Optional[UserStorageConfig] = None,
     max_attempts: int = 4,
     status_cb=None,
 ) -> dict:
@@ -271,6 +282,8 @@ async def process_topic_async(
             final_video,
             object_key=_r2_object_key(job_id, "final"),
             work_dir=work_dir,
+            user_id=user_id,
+            storage_override=storage_override,
         )
         log(f"☁️ Uploaded: {video_url}")
         return {
@@ -294,6 +307,8 @@ async def process_topic_async(
                     video,
                     object_key=_r2_object_key(job_id, "silent"),
                     work_dir=work_dir,
+                    user_id=user_id,
+                    storage_override=storage_override,
                 )
                 return {
                     "ok": True,

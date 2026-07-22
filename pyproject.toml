@@ -12,4 +12,6 @@ dependencies = [
     "boto3>=1.42.97",
     "fastapi>=0.136.1",
     "uvicorn>=0.46.0",
+    "psycopg[binary]>=3.2.0",
+    "cryptography>=44.0.0",
 ]

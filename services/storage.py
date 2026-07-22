@@ -1,9 +1,12 @@
 import os
 from datetime import datetime, timezone
+from typing import Optional
 from urllib.parse import urlparse
 
 import boto3
 from botocore.client import Config
+
+from services.user_storage import UserStorageConfig, get_active_storage_for_user
 
 
 def r2_config_status() -> dict:
@@ -52,11 +55,61 @@ def _resolve_r2_settings() -> tuple[str, str, str, str, str]:
     return bucket, access_key, secret_key, public_base, endpoint_url
 
 
-def upload_to_r2(file_path: str, object_key: str | None = None, log=print) -> str:
+def _s3_client_from_user(cfg: UserStorageConfig):
+    creds = cfg.credentials
+    provider = cfg.provider.upper()
+    if provider == "R2":
+        account_id = creds.get("accountId") or creds.get("account_id")
+        endpoint = f"https://{account_id}.r2.cloudflarestorage.com"
+        region = "auto"
+    else:
+        endpoint = creds.get("endpoint")
+        region = creds.get("region") or "us-east-1"
+
+    return boto3.client(
+        "s3",
+        endpoint_url=endpoint,
+        aws_access_key_id=creds.get("accessKeyId") or creds.get("access_key_id"),
+        aws_secret_access_key=creds.get("secretAccessKey") or creds.get("secret_access_key"),
+        config=Config(signature_version="s3v4"),
+        region_name=region,
+    ), cfg.bucket_name, cfg.public_url
+
+
+def _upload_with_s3_client(
+    client,
+    bucket: str,
+    public_base: Optional[str],
+    file_path: str,
+    object_key: str,
+    log=print,
+) -> str:
+    content_type = "video/mp4" if file_path.lower().endswith(".mp4") else "application/octet-stream"
+    size_mb = os.path.getsize(file_path) / (1024 * 1024)
+    log(f"  ☁️ Uploading {size_mb:.1f} MB → s3://{bucket}/{object_key}")
+    client.upload_file(
+        file_path,
+        bucket,
+        object_key,
+        ExtraArgs={"ContentType": content_type},
+    )
+    if public_base:
+        url = f"{public_base.rstrip('/')}/{object_key}"
+    else:
+        url = f"s3://{bucket}/{object_key}"
+    log(f"  ☁️ Public URL: {url}")
+    return url
+
+
+def upload_to_r2(
+    file_path: str,
+    object_key: str | None = None,
+    log=print,
+    user_id: str | None = None,
+    storage_override: UserStorageConfig | None = None,
+) -> str:
     if not os.path.isfile(file_path):
         raise FileNotFoundError(f"Cannot upload missing file: {file_path}")
-
-    bucket, access_key, secret_key, public_base, endpoint_url = _resolve_r2_settings()
 
     if not object_key:
         filename = os.path.basename(file_path)
@@ -67,6 +120,26 @@ def upload_to_r2(file_path: str, object_key: str | None = None, log=print) -> st
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
         object_key = f"videos/{stamp}-{os.path.basename(file_path)}"
 
+    # Explicit per-job storage (inline API creds or chosen integration)
+    user_cfg = storage_override
+    if not user_cfg and user_id:
+        user_cfg = get_active_storage_for_user(user_id)
+
+    if user_cfg and user_cfg.provider.upper() != "UPLOADTHING":
+        try:
+            client, bucket, public_base = _s3_client_from_user(user_cfg)
+            label = "inline" if user_cfg.integration_id == "inline" else user_cfg.integration_id
+            log(f"  📦 Uploading to user storage ({label})")
+            return _upload_with_s3_client(
+                client, bucket, public_base, file_path, object_key, log=log
+            )
+        except Exception as e:
+            if storage_override:
+                raise RuntimeError(f"User storage upload failed: {e}") from e
+            log(f"  ⚠️ User storage upload failed, falling back to default: {e}")
+
+    bucket, access_key, secret_key, public_base, endpoint_url = _resolve_r2_settings()
+
     client = boto3.client(
         "s3",
         endpoint_url=endpoint_url,
@@ -75,16 +148,4 @@ def upload_to_r2(file_path: str, object_key: str | None = None, log=print) -> st
         config=Config(signature_version="s3v4"),
         region_name="auto",
     )
-
-    content_type = "video/mp4" if file_path.lower().endswith(".mp4") else "application/octet-stream"
-    size_mb = os.path.getsize(file_path) / (1024 * 1024)
-    log(f"  ☁️ Uploading {size_mb:.1f} MB → s3://{bucket}/{object_key}")
-    client.upload_file(
-        file_path,
-        bucket,
-        object_key,
-        ExtraArgs={"ContentType": content_type},
-    )
-    url = f"{public_base.rstrip('/')}/{object_key}"
-    log(f"  ☁️ Public URL: {url}")
-    return url
+    return _upload_with_s3_client(client, bucket, public_base, file_path, object_key, log=log)
