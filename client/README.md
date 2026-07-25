@@ -1,13 +1,12 @@
-# Chalkboard frontend
+# manimotion frontend
 
-Next.js app for the Chalkboard UI (threads, lecture parameters, video canvas).
+Next.js app for manimotion — STEM lecture demos, projects, video canvas, and settings (API keys / storage).
 
-**Full stack setup, API contract, and environment variables:** see the [repository root README](../README.md).
-
-### Quick start
+## Dev
 
 ```bash
-npm install
-# Create .env.local with NEXT_PUBLIC_CHALKBOARD_API_URL (see root README)
-npm run dev
+bun install
+bun run dev
 ```
+
+Set `NEXT_PUBLIC_CHALKBOARD_API_URL` (video worker) and auth/DB vars — see `.env.example`.

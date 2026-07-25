@@ -1,20 +1,22 @@
 # API Keys & Storage (Client)
 
-User-facing settings for Clarity / Chalkboard: create API keys and connect your own storage.
+User-facing settings for manimotion: create API keys and connect your own storage.
 
 ## Setup
 
 ```bash
 cd client
 cp .env.example .env
-# Set DATABASE_URL, SESSION_SECRET, SECRET_ENCRYPTION_KEY
+# Set DATABASE_URL (Neon), BETTER_AUTH_SECRET, BETTER_AUTH_URL, SECRET_ENCRYPTION_KEY
 
 bun install
-bun run db:push   # create tables
+bun run db:push   # push Better Auth + api_keys schema to Neon
 bun run dev
 ```
 
-Open **Settings** in the sidebar → sign in with email → create API keys and storage.
+Open `/sign-up` → create account → **Settings** → API keys / storage.
+
+Auth details: see [AUTH.md](./AUTH.md).
 
 ## Security model
 

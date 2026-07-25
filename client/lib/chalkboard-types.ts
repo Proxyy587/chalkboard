@@ -25,12 +25,6 @@ export type ThreadVideo = {
   cached?: boolean;
 };
 
-export type VisualStyle =
-  | "BRUTALIST"
-  | "NEON_NOIR"
-  | "ANALOG_CRT"
-  | "MINIMAL_OS";
-
 export type Thread = {
   id: string;
   title: string;
@@ -38,6 +32,8 @@ export type Thread = {
   videos: ThreadVideo[];
   /** LLM model id sent to `/generate-lecture`. */
   model: string;
+  /** Optional target duration in seconds; omit for auto. */
+  duration?: number;
   updatedAt: number;
 };
 
@@ -63,6 +59,7 @@ export function normalizeThread(raw: unknown): Thread | null {
     messages: t.messages as ThreadMessage[],
     videos,
     model,
+    duration: typeof t.duration === "number" ? t.duration : undefined,
     updatedAt: typeof t.updatedAt === "number" ? t.updatedAt : Date.now(),
   };
 }

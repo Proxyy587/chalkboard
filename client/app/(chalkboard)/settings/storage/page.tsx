@@ -150,9 +150,9 @@ export default function StorageSettingsPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-sm tracking-[0.12em] text-zinc-300">STORAGE</h2>
-          <p className="mt-1 max-w-lg text-[11px] text-zinc-500">
-            Videos upload to your bucket when configured. Credentials are encrypted at rest (AES-256-GCM).
+          <h2 className="text-[13px] text-zinc-200">Storage</h2>
+          <p className="mt-1 max-w-lg text-[12px] text-zinc-500">
+            Videos upload to your bucket when configured. Credentials encrypted at rest.
           </p>
         </div>
         <Button type="button" onClick={() => setShowForm((v) => !v)}>
@@ -162,7 +162,7 @@ export default function StorageSettingsPage() {
       </div>
 
       {showForm && (
-        <div className="space-y-4 border border-white/10 bg-black/25 p-4">
+        <div className="mm-panel space-y-4 p-4">
           <div className="grid gap-4 md:grid-cols-2">
             <div>
               <Label>Name</Label>
@@ -313,7 +313,7 @@ export default function StorageSettingsPage() {
       </div>
 
       <div className="border border-white/10 bg-black/20 p-4">
-        <p className="text-[10px] tracking-[0.14em] text-[#dfff00]">USE IN API</p>
+        <p className="mm-label">Use in API</p>
         <p className="mt-2 text-[11px] leading-relaxed text-zinc-500">
           Pass <code className="text-zinc-400">storage.integration_id</code> with the id above, or inline
           R2/S3 credentials per request (never stored — job-scoped only).

@@ -7,15 +7,15 @@ import { cn } from "@/lib/utils";
 
 const links = [
   { href: "/settings", label: "Overview" },
-  { href: "/settings/api-keys", label: "API Keys" },
+  { href: "/settings/api-keys", label: "API keys" },
   { href: "/settings/storage", label: "Storage" },
 ];
 
 export function SettingsNav() {
   const pathname = usePathname();
   return (
-    <nav className="flex flex-wrap gap-2 border-b border-white/10 pb-4">
-      {links.map((link) => {
+    <nav className="flex gap-0 border border-white/10">
+      {links.map((link, i) => {
         const active =
           link.href === "/settings"
             ? pathname === "/settings"
@@ -25,13 +25,14 @@ export function SettingsNav() {
             key={link.href}
             href={link.href}
             className={cn(
-              "border px-3 py-1.5 text-[10px] tracking-[0.14em] transition-colors",
+              "flex-1 px-3 py-2.5 text-center text-[11px] tracking-[0.08em] transition-colors",
+              i > 0 && "border-l border-white/10",
               active
-                ? "border-[#dfff00]/40 bg-[#dfff00]/10 text-[#dfff00]"
-                : "border-transparent text-zinc-500 hover:border-white/10 hover:text-zinc-300"
+                ? "bg-white/[0.06] text-white"
+                : "text-zinc-500 hover:bg-white/[0.03] hover:text-zinc-300"
             )}
           >
-            {link.label.toUpperCase()}
+            {link.label}
           </Link>
         );
       })}

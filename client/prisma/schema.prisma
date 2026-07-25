@@ -7,18 +7,74 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ─── Better Auth core models ──────────────────────────────────────────────────
+
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  emailVerified Boolean   @default(false) @map("email_verified")
+  image         String?
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  sessions Session[]
+  accounts Account[]
 
   apiKeys             ApiKey[]
   storageIntegrations StorageIntegration[]
 
-  @@map("users")
+  @@map("user")
 }
+
+model Session {
+  id        String   @id @default(cuid())
+  expiresAt DateTime @map("expires_at")
+  token     String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  accountId             String    @map("account_id")
+  providerId            String    @map("provider_id")
+  userId                String    @map("user_id")
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?   @map("access_token")
+  refreshToken          String?   @map("refresh_token")
+  idToken               String?   @map("id_token")
+  accessTokenExpiresAt  DateTime? @map("access_token_expires_at")
+  refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at")
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime @map("expires_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+// ─── Chalkboard API keys & storage ────────────────────────────────────────────
 
 model ApiKey {
   id     String @id @default(cuid())
@@ -41,9 +97,9 @@ model ApiKey {
   lastUsedAt DateTime? @map("last_used_at")
   lastUsedIp String?   @map("last_used_ip")
 
-  rateLimit  Int?     @map("rate_limit")
-  allowedIps String[] @default([]) @map("allowed_ips")
-  scopes     String[] @default(["video:generate", "video:read"])
+  rateLimit  Int?      @map("rate_limit")
+  allowedIps String[]  @default([]) @map("allowed_ips")
+  scopes     String[]  @default(["video:generate", "video:read"])
   expiresAt  DateTime? @map("expires_at")
 
   isActive  Boolean   @default(true) @map("is_active")
@@ -66,16 +122,16 @@ model ApiKeyUsageLog {
   apiKeyId String @map("api_key_id")
   apiKey   ApiKey @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
 
-  endpoint  String
-  method    String
-  creditsUsed Decimal @default(0) @map("credits_used") @db.Decimal(12, 6)
-  model       String?
-  inputTokens  Int?   @map("input_tokens")
-  outputTokens Int?   @map("output_tokens")
-  statusCode  Int     @map("status_code")
-  durationMs  Int     @map("duration_ms")
-  ipAddress   String? @map("ip_address")
-  userAgent   String? @map("user_agent")
+  endpoint     String
+  method       String
+  creditsUsed  Decimal @default(0) @map("credits_used") @db.Decimal(12, 6)
+  model        String?
+  inputTokens  Int?    @map("input_tokens")
+  outputTokens Int?    @map("output_tokens")
+  statusCode   Int     @map("status_code")
+  durationMs   Int     @map("duration_ms")
+  ipAddress    String? @map("ip_address")
+  userAgent    String? @map("user_agent")
 
   createdAt DateTime @default(now()) @map("created_at")
 

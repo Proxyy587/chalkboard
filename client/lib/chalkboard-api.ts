@@ -1,12 +1,78 @@
 /** Matches `worker.DEFAULT_MODEL` / `schema.chat.ChatRequest`. */
 export const DEFAULT_LECTURE_MODEL = "deepseek/deepseek-v3.2";
 
-/** Common OpenRouter-style ids; extend as needed. */
-export const LECTURE_MODEL_OPTIONS = [
-  DEFAULT_LECTURE_MODEL,
-  "openai/gpt-4o",
-  "anthropic/claude-3.5-sonnet",
+export type LectureModelOption = {
+  id: string;
+  label: string;
+  hint: string;
+};
+
+/** OpenRouter-style ids with human labels for the selector. */
+export const LECTURE_MODELS: LectureModelOption[] = [
+  {
+    id: "deepseek/deepseek-v3.2",
+    label: "DeepSeek V3.2",
+    hint: "Fast · strong for math",
+  },
+  {
+    id: "openai/gpt-4o",
+    label: "GPT-4o",
+    hint: "Balanced · clear narration",
+  },
+  {
+    id: "anthropic/claude-3.5-sonnet",
+    label: "Claude 3.5 Sonnet",
+    hint: "Careful · explanatory",
+  },
+  {
+    id: "google/gemini-2.0-flash-001",
+    label: "Gemini 2.0 Flash",
+    hint: "Quick · exploratory",
+  },
+];
+
+export const LECTURE_MODEL_OPTIONS = LECTURE_MODELS.map((m) => m.id);
+
+export const DURATION_OPTIONS = [
+  { value: undefined as number | undefined, label: "Auto length" },
+  { value: 30, label: "≈ 30s" },
+  { value: 60, label: "≈ 1 min" },
+  { value: 90, label: "≈ 90s" },
+  { value: 120, label: "≈ 2 min" },
 ] as const;
+
+const PREF_MODEL_KEY = "manimotion_pref_model";
+const PREF_DURATION_KEY = "manimotion_pref_duration";
+
+export function getPreferredModel(): string {
+  if (typeof window === "undefined") return DEFAULT_LECTURE_MODEL;
+  const raw = localStorage.getItem(PREF_MODEL_KEY)?.trim();
+  if (raw && LECTURE_MODELS.some((m) => m.id === raw)) return raw;
+  return DEFAULT_LECTURE_MODEL;
+}
+
+export function setPreferredModel(model: string) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(PREF_MODEL_KEY, model);
+}
+
+export function getPreferredDuration(): number | undefined {
+  if (typeof window === "undefined") return undefined;
+  const raw = localStorage.getItem(PREF_DURATION_KEY);
+  if (raw == null || raw === "" || raw === "auto") return undefined;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+export function setPreferredDuration(duration: number | undefined) {
+  if (typeof window === "undefined") return;
+  if (duration == null) localStorage.setItem(PREF_DURATION_KEY, "auto");
+  else localStorage.setItem(PREF_DURATION_KEY, String(duration));
+}
+
+export function getModelLabel(id: string): string {
+  return LECTURE_MODELS.find((m) => m.id === id)?.label ?? id;
+}
 
 export function getChalkboardApiBase(): string {
   const raw = process.env.NEXT_PUBLIC_CHALKBOARD_API_URL?.trim();
@@ -56,7 +122,13 @@ async function readApiError(res: Response): Promise<string> {
     const d = j.detail;
     if (typeof d === "string") return d;
     if (Array.isArray(d))
-      return d.map((x) => (typeof x === "object" && x && "msg" in x ? String((x as { msg: string }).msg) : String(x))).join("; ");
+      return d
+        .map((x) =>
+          typeof x === "object" && x && "msg" in x
+            ? String((x as { msg: string }).msg)
+            : String(x)
+        )
+        .join("; ");
     return res.statusText || `HTTP ${res.status}`;
   } catch {
     return res.statusText || `HTTP ${res.status}`;
@@ -69,15 +141,17 @@ export async function createLectureJob(
   opts?: { engine?: "auto" | "manim" | "remotion"; duration?: number }
 ): Promise<JobCreateResponse> {
   const base = getChalkboardApiBase();
+  const body: Record<string, unknown> = {
+    messages,
+    model: model.trim() || DEFAULT_LECTURE_MODEL,
+    engine: opts?.engine ?? "auto",
+  };
+  if (opts?.duration != null) body.duration = opts.duration;
+
   const res = await fetch(`${base}/generate-lecture`, {
     method: "POST",
     headers: apiHeaders(),
-    body: JSON.stringify({
-      messages,
-      model: model.trim() || DEFAULT_LECTURE_MODEL,
-      engine: opts?.engine ?? "auto",
-      duration: opts?.duration ?? 60,
-    }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(await readApiError(res));
   return res.json() as Promise<JobCreateResponse>;

@@ -81,9 +81,10 @@ export default function ApiKeysSettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-sm tracking-[0.12em] text-zinc-300">API KEYS</h2>
-        <p className="mt-1 max-w-lg text-[11px] text-zinc-500">
-          Send header <code className="text-zinc-400">x-api-key: chalk_live_sk_v1_…</code>
+          <h2 className="text-[13px] text-zinc-200">API keys</h2>
+        <p className="mt-1 max-w-lg text-[12px] text-zinc-500">
+          Header{" "}
+          <code className="text-zinc-400">x-api-key: chalk_live_sk_v1_…</code>
         </p>
       </div>
 
@@ -92,11 +93,13 @@ export default function ApiKeysSettingsPage() {
           <div className="flex gap-2">
             <AlertTriangle className="size-4 shrink-0 text-amber-400" />
             <div className="min-w-0 flex-1 space-y-3">
-              <p className="text-[11px] text-amber-200/90">Copy now — shown once only.</p>
+              <p className="text-[11px] text-amber-200/90">
+                Copy this key now — it won&apos;t be shown again.
+              </p>
               <code className="block break-all border border-white/10 bg-black/50 p-2 text-[10px]">
                 {createdKey}
               </code>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Button
                   type="button"
                   variant="outline"
@@ -104,9 +107,6 @@ export default function ApiKeysSettingsPage() {
                   onClick={() => navigator.clipboard.writeText(createdKey)}
                 >
                   <Copy className="size-3.5" /> Copy
-                </Button>
-                <Button type="button" variant="ghost" size="sm" onClick={() => setCreatedKey(null)}>
-                  Done
                 </Button>
                 <Button
                   type="button"
@@ -119,14 +119,17 @@ export default function ApiKeysSettingsPage() {
                 >
                   Use in this browser
                 </Button>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setCreatedKey(null)}>
+                  Done
+                </Button>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      <div className="border border-white/10 bg-black/25 p-4">
-        <Label htmlFor="key-name">New key name</Label>
+      <div className="mm-panel p-4">
+        <Label htmlFor="key-name">Name</Label>
         <div className="mt-2 flex flex-wrap gap-2">
           <Input
             id="key-name"
@@ -134,24 +137,33 @@ export default function ApiKeysSettingsPage() {
             onChange={(e) => setName(e.target.value)}
             placeholder="Production"
             className="max-w-xs"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void createKey();
+              }
+            }}
           />
           <Button type="button" onClick={createKey} disabled={creating || !name.trim()}>
             <Plus className="size-3.5" />
-            {creating ? "Creating…" : "Create"}
+            {creating ? "Creating…" : "Create key"}
           </Button>
         </div>
-        {error && <p className="mt-2 text-[11px] text-red-400">{error}</p>}
+        {error && <p className="mt-2 text-[13px] text-red-400">{error}</p>}
       </div>
 
-      <div className="border border-white/10 divide-y divide-white/10">
+      <div className="mm-panel divide-y divide-white/10">
         {loading && <p className="p-6 text-[11px] text-zinc-600">Loading…</p>}
         {!loading && keys.length === 0 && (
           <p className="p-6 text-[11px] text-zinc-600">No keys yet.</p>
         )}
         {keys.map((key) => (
-          <div key={key.id} className="flex items-center justify-between gap-4 p-4">
-            <div>
-              <div className="flex items-center gap-2">
+          <div
+            key={key.id}
+            className="flex items-center justify-between gap-4 p-4"
+          >
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="text-[12px] text-zinc-200">{key.name}</span>
                 <Badge variant="outline">{key.environment}</Badge>
                 <Badge variant="lime">{key.plan}</Badge>

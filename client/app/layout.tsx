@@ -14,8 +14,8 @@ const pixelifySans = Pixelify_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Chalkboard",
-  description: "Generate AI-powered video lectures with Chalkboard",
+  title: "manimotion",
+  description: "Turn any STEM idea into a motion lecture — try the demo free.",
 };
 
 export default function RootLayout({

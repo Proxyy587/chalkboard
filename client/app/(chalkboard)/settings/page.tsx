@@ -1,41 +1,54 @@
 import Link from "next/link";
-
-import { Button } from "@/components/ui/button";
+import { KeyRound, HardDrive, Sparkles } from "lucide-react";
 
 export default function SettingsOverviewPage() {
   return (
-    <div className="space-y-6">
-      <section className="border border-white/10 bg-black/25 p-5">
-        <h2 className="text-[11px] tracking-[0.16em] text-zinc-400">GET STARTED</h2>
-        <p className="mt-3 max-w-xl text-[12px] leading-relaxed text-zinc-500">
-          Create an API key to authenticate video requests against the Clarity worker. Connect your
-          own R2, S3, or UploadThing bucket so renders land in your storage — not ours.
-        </p>
-        <div className="mt-5 flex flex-wrap gap-3">
-          <Button asChild>
-            <Link href="/settings/api-keys">Create API key</Link>
-          </Button>
-          <Button variant="outline" asChild>
-            <Link href="/settings/storage">Add storage</Link>
-          </Button>
+    <div className="space-y-4">
+      <section className="mm-panel p-5">
+        <div className="flex items-start gap-3">
+          <Sparkles className="mt-0.5 size-4 shrink-0 text-[var(--mm-accent)]" strokeWidth={1.5} />
+          <div className="space-y-3">
+            <h2 className="text-[13px] text-zinc-200">Ship with manimotion</h2>
+            <p className="max-w-xl text-[12px] leading-relaxed text-zinc-500">
+              Create an API key for the video worker, then attach your own bucket so renders land
+              in your storage.
+            </p>
+            <div className="flex flex-wrap gap-2 pt-1">
+              <Link href="/settings/api-keys" className="mm-pixel-btn inline-flex px-4 py-2">
+                Create API key
+              </Link>
+              <Link href="/settings/storage" className="mm-ghost-btn inline-flex px-4 py-2">
+                Add storage
+              </Link>
+            </div>
+          </div>
         </div>
       </section>
-      <section className="grid gap-4 md:grid-cols-2">
-        <div className="border border-white/10 bg-black/20 p-4">
-          <h3 className="text-[10px] tracking-[0.14em] text-[#dfff00]">API KEYS</h3>
-          <p className="mt-2 text-[11px] leading-relaxed text-zinc-500">
-            Keys are shown once. We store only a SHA-256 hash. Plans and credits are on the schema
-            for when billing ships — no limits enforced yet on FREE.
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Link
+          href="/settings/api-keys"
+          className="mm-panel group block p-4 transition-colors hover:border-white/25"
+        >
+          <KeyRound className="size-4 text-zinc-500 group-hover:text-[var(--mm-accent)]" strokeWidth={1.5} />
+          <h3 className="mt-3 text-[12px] text-zinc-200">API keys</h3>
+          <p className="mt-1.5 text-[11px] leading-relaxed text-zinc-500">
+            Shown once. We store a SHA-256 hash only. Use{" "}
+            <code className="text-zinc-400">x-api-key</code> on requests.
           </p>
-        </div>
-        <div className="border border-white/10 bg-black/20 p-4">
-          <h3 className="text-[10px] tracking-[0.14em] text-[#dfff00]">STORAGE</h3>
-          <p className="mt-2 text-[11px] leading-relaxed text-zinc-500">
-            Credentials are encrypted with AES-256-GCM before storage. Connection is tested before
-            save. Supports R2, S3, MinIO, Backblaze B2, and UploadThing.
+        </Link>
+        <Link
+          href="/settings/storage"
+          className="mm-panel group block p-4 transition-colors hover:border-white/25"
+        >
+          <HardDrive className="size-4 text-zinc-500 group-hover:text-[var(--mm-accent)]" strokeWidth={1.5} />
+          <h3 className="mt-3 text-[12px] text-zinc-200">Storage</h3>
+          <p className="mt-1.5 text-[11px] leading-relaxed text-zinc-500">
+            R2, S3, MinIO, Backblaze, UploadThing. Credentials encrypted at rest
+            (AES-256-GCM).
           </p>
-        </div>
-      </section>
+        </Link>
+      </div>
     </div>
   );
 }

@@ -93,10 +93,19 @@ type ChalkboardContextValue = {
   threadsById: Record<string, Thread>;
   threadIdsSorted: string[];
   getThread: (id: string) => Thread | undefined;
-  createThreadFromPrompt: (prompt: string) => string;
-  appendUserMessage: (threadId: string, content: string) => void;
+  createThreadFromPrompt: (
+    prompt: string,
+    opts?: { model?: string; duration?: number }
+  ) => string;
+  setThreadPrompt: (threadId: string, content: string) => void;
+  deleteThread: (threadId: string) => void;
   setThreadModel: (threadId: string, model: string) => void;
-  startLectureRender: (threadId: string) => Promise<void>;
+  setThreadDuration: (threadId: string, duration: number | undefined) => void;
+  startLectureRender: (
+    threadId: string,
+    promptOverride?: string,
+    opts?: { duration?: number }
+  ) => Promise<void>;
 };
 
 const ChalkboardContext = createContext<ChalkboardContextValue | null>(null);
@@ -144,67 +153,63 @@ export function ChalkboardProvider({ children }: { children: ReactNode }) {
     []
   );
 
-  const createThreadFromPrompt = useCallback((prompt: string) => {
-    const id = uid();
-    const now = Date.now();
-    const userMsg: ThreadMessage = {
-      id: uid(),
-      role: "user",
-      content: prompt.trim(),
-      createdAt: now,
-    };
-    const assistantMsg: ThreadMessage = {
-      id: uid(),
-      role: "assistant",
-      content:
-        "Choose the LLM model below, then press RENDER. The API runs Manim, audio, and uploads the MP4 to R2 — the canvas will show the stream URL when ready.",
-      createdAt: now + 1,
-    };
-    const thread: Thread = {
-      id,
-      title: truncateTitle(prompt),
-      messages: [userMsg, assistantMsg],
-      videos: [],
-      model: DEFAULT_LECTURE_MODEL,
-      updatedAt: now,
-    };
-    setThreadsById((prev) =>
-      persistThreads(prev, (p) => ({ ...p, [id]: thread }))
-    );
-    return id;
-  }, []);
+  const createThreadFromPrompt = useCallback(
+    (prompt: string, opts?: { model?: string; duration?: number }) => {
+      const id = uid();
+      const now = Date.now();
+      const userMsg: ThreadMessage = {
+        id: uid(),
+        role: "user",
+        content: prompt.trim(),
+        createdAt: now,
+      };
+      const thread: Thread = {
+        id,
+        title: truncateTitle(prompt),
+        messages: [userMsg],
+        videos: [],
+        model: opts?.model?.trim() || DEFAULT_LECTURE_MODEL,
+        duration: opts?.duration,
+        updatedAt: now,
+      };
+      setThreadsById((prev) =>
+        persistThreads(prev, (p) => ({ ...p, [id]: thread }))
+      );
+      return id;
+    },
+    []
+  );
 
-  const appendUserMessage = useCallback((threadId: string, content: string) => {
+  const setThreadPrompt = useCallback((threadId: string, content: string) => {
     const text = content.trim();
     if (!text) return;
-    const msg: ThreadMessage = {
-      id: uid(),
-      role: "user",
-      content: text,
-      createdAt: Date.now(),
-    };
     setThreadsById((prev) =>
       persistThreads(prev, (p) => {
         const t = p[threadId];
         if (!t) return p;
+        const existing = t.messages.find((m) => m.role === "user");
+        const userMsg: ThreadMessage = existing
+          ? { ...existing, content: text, createdAt: Date.now() }
+          : { id: uid(), role: "user", content: text, createdAt: Date.now() };
         return {
           ...p,
           [threadId]: {
             ...t,
-            messages: [
-              ...t.messages,
-              msg,
-              {
-                id: uid(),
-                role: "assistant",
-                content:
-                  "Noted. The server uses your latest user message as the lecture topic when you RENDER.",
-                createdAt: Date.now() + 1,
-              },
-            ],
+            title: truncateTitle(text),
+            messages: [userMsg],
             updatedAt: Date.now(),
           },
         };
+      })
+    );
+  }, []);
+
+  const deleteThread = useCallback((threadId: string) => {
+    setThreadsById((prev) =>
+      persistThreads(prev, (p) => {
+        const next = { ...p };
+        delete next[threadId];
+        return next;
       })
     );
   }, []);
@@ -223,17 +228,44 @@ export function ChalkboardProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
-  const startLectureRender = useCallback(
-    async (threadId: string) => {
-      const t = getThread(threadId);
-      if (!t) return;
+  const setThreadDuration = useCallback(
+    (threadId: string, duration: number | undefined) => {
+      setThreadsById((prev) =>
+        persistThreads(prev, (p) => {
+          const t = p[threadId];
+          if (!t) return p;
+          return {
+            ...p,
+            [threadId]: { ...t, duration, updatedAt: Date.now() },
+          };
+        })
+      );
+    },
+    []
+  );
 
-      const messages = t.messages.map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
-      const lastUser = [...t.messages].reverse().find((m) => m.role === "user");
-      if (!lastUser?.content.trim()) return;
+  const startLectureRender = useCallback(
+    async (
+      threadId: string,
+      promptOverride?: string,
+      opts?: { duration?: number }
+    ) => {
+      const override = promptOverride?.trim();
+      if (override) {
+        setThreadPrompt(threadId, override);
+      }
+
+      const t = getThread(threadId);
+      const userContent =
+        override ||
+        [...(t?.messages ?? [])].reverse().find((m) => m.role === "user")
+          ?.content;
+      if (!t || !userContent?.trim()) return;
+
+      const messages = [{ role: "user" as const, content: userContent.trim() }];
+      const model = t.model;
+      const duration =
+        opts && "duration" in opts ? opts.duration : t.duration;
 
       const videoId = uid();
       const placeholder: ThreadVideo = {
@@ -259,7 +291,9 @@ export function ChalkboardProvider({ children }: { children: ReactNode }) {
       );
 
       try {
-        const data = await createLectureJob(messages, t.model);
+        const data = await createLectureJob(messages, model, {
+          duration,
+        });
         patchVideo(threadId, videoId, {
           jobId: data.job_id,
           title: shortJobTitle(data.job_id),
@@ -301,7 +335,7 @@ export function ChalkboardProvider({ children }: { children: ReactNode }) {
         });
       }
     },
-    [getThread, patchVideo]
+    [getThread, patchVideo, setThreadPrompt]
   );
 
   const value = useMemo(
@@ -311,8 +345,10 @@ export function ChalkboardProvider({ children }: { children: ReactNode }) {
       threadIdsSorted,
       getThread,
       createThreadFromPrompt,
-      appendUserMessage,
+      setThreadPrompt,
+      deleteThread,
       setThreadModel,
+      setThreadDuration,
       startLectureRender,
     }),
     [
@@ -321,8 +357,10 @@ export function ChalkboardProvider({ children }: { children: ReactNode }) {
       threadIdsSorted,
       getThread,
       createThreadFromPrompt,
-      appendUserMessage,
+      setThreadPrompt,
+      deleteThread,
       setThreadModel,
+      setThreadDuration,
       startLectureRender,
     ]
   );
