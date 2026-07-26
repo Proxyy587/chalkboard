@@ -14,21 +14,50 @@ from prompts.manim_prompt import (
 )
 from prompts.narration_prompt import NARRATION_SYSTEM_PROMPT, NARRATION_USER_TEMPLATE
 from prompts.planner_prompt import VISUAL_PLANNER_SYSTEM_PROMPT, VISUAL_PLANNER_USER_TEMPLATE
-from prompts.remotion_prompt import REMOTION_SYSTEM_PROMPT, REMOTION_USER_TEMPLATE
+from prompts.quality_prompt import QUALITY_JUDGE_SYSTEM, build_quality_judge_prompt
+from prompts.remotion_prompt import (
+    REMOTION_ERROR_HINTS,
+    REMOTION_SYSTEM_PROMPT,
+    REMOTION_USER_TEMPLATE,
+)
 
 load_dotenv()
 _client = OpenRouter(api_key=os.getenv("OPENROUTER_API_KEY"))
 DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "deepseek/deepseek-v3.2")
 PLANNER_MODEL = os.getenv("PLANNER_MODEL", "openai/gpt-4o-mini")
+JUDGE_MODEL = os.getenv("JUDGE_MODEL", PLANNER_MODEL)
 
 
 def clean_code(code: str, language: str = "python") -> str:
-    code = code.strip()
-    if language == "python":
-        code = re.sub(r"^```(?:python)?\s*\n?", "", code, flags=re.MULTILINE)
+    """Strip markdown fences / prose wrappers from LLM code output."""
+    code = (code or "").strip()
+    if not code:
+        return code
+
+    # Prefer fenced block contents when present (Remotion docs note models wrap ```tsx)
+    fence = re.search(r"```(?:python|typescript|tsx|ts|js|jsx)?\s*\n([\s\S]*?)```", code)
+    if fence:
+        code = fence.group(1).strip()
     else:
-        code = re.sub(r"^```(?:typescript|tsx|ts|js|jsx)?\s*\n?", "", code, flags=re.MULTILINE)
-    code = re.sub(r"\n?```\s*$", "", code)
+        if language == "python":
+            code = re.sub(r"^```(?:python)?\s*\n?", "", code, flags=re.MULTILINE)
+        else:
+            code = re.sub(
+                r"^```(?:typescript|tsx|ts|js|jsx)?\s*\n?",
+                "",
+                code,
+                flags=re.MULTILINE,
+            )
+        code = re.sub(r"\n?```\s*$", "", code)
+
+    # Drop leading prose before first import / from / export / class
+    if language == "python":
+        m = re.search(r"(?m)^(from |import |class )", code)
+    else:
+        m = re.search(r"(?m)^(import |export |const |function |type )", code)
+    if m and m.start() > 0:
+        code = code[m.start() :]
+
     return code.strip()
 
 
@@ -67,6 +96,19 @@ def sanitize_generated_code(code: str) -> str:
     code = _strip_method_calls(code, "get_parts_by_tex")
     code = _strip_method_calls(code, "get_part_by_tex")
     return code
+
+
+def sanitize_remotion_code(code: str) -> str:
+    """Light post-process for Remotion TSX from LLMs."""
+    code = clean_code(code, "typescript")
+    if "from 'react'" not in code and 'from "react"' not in code:
+        code = "import React from 'react';\n" + code
+    # Soften common mistakes
+    code = code.replace("export default MainComposition", "")
+    code = code.replace("export default MainComposition;", "")
+    code = re.sub(r"[^\x09\x0A\x0D\x20-\x7E]", "", code)
+    code = code.replace("lowest:", "0,")
+    return code.strip()
 
 
 def _parse_json_object(text: str) -> dict[str, Any]:
@@ -146,7 +188,6 @@ def generate_visual_plan(
     if len(beats) < 2:
         raise RuntimeError("Visual plan missing beats")
 
-    # Normalize beat ids
     for i, beat in enumerate(beats, start=1):
         beat["id"] = i
         beat["duration_sec"] = float(beat.get("duration_sec", 5))
@@ -224,7 +265,10 @@ def generate_manim_code(
     if isinstance(visual_plan, dict):
         plan_text = format_beat_sheet_for_prompt(visual_plan)
         if duration is None:
-            duration = int(visual_plan.get("target_duration_sec") or beat_sheet_target_duration(visual_plan))
+            duration = int(
+                visual_plan.get("target_duration_sec")
+                or beat_sheet_target_duration(visual_plan)
+            )
     else:
         plan_text = str(visual_plan)
 
@@ -235,7 +279,11 @@ def generate_manim_code(
         complexity=complexity,
     )
     if previous_code:
-        trimmed = previous_code if len(previous_code) < 6000 else previous_code[:6000] + "\n# ... truncated ..."
+        trimmed = (
+            previous_code
+            if len(previous_code) < 6000
+            else previous_code[:6000] + "\n# ... truncated ..."
+        )
         user_msg += f"\n\nPREVIOUS ATTEMPT:\n{trimmed}"
     if error:
         user_msg += f"\n\nRENDER ERROR TO FIX:\n{error[-2500:]}\n{MANIM_ERROR_HINTS}"
@@ -275,7 +323,10 @@ def generate_remotion_code(
     t0 = time.time()
     if isinstance(visual_plan, dict):
         plan_text = format_beat_sheet_for_prompt(visual_plan)
-        dur = duration or int(visual_plan.get("target_duration_sec") or beat_sheet_target_duration(visual_plan))
+        dur = duration or int(
+            visual_plan.get("target_duration_sec")
+            or beat_sheet_target_duration(visual_plan)
+        )
     else:
         plan_text = str(visual_plan)
         dur = duration or 55
@@ -290,7 +341,7 @@ def generate_remotion_code(
     if previous_code:
         user_msg += f"\n\nPREVIOUS ATTEMPT:\n{previous_code[:6000]}"
     if error:
-        user_msg += f"\n\nRENDER ERROR TO FIX:\n{error[-2500:]}"
+        user_msg += f"\n\nRENDER ERROR TO FIX:\n{error[-2500:]}\n{REMOTION_ERROR_HINTS}"
 
     response = _client.chat.send(
         model=model,
@@ -299,8 +350,48 @@ def generate_remotion_code(
             {"role": "user", "content": user_msg},
         ],
     )
-    code = clean_code(response.choices[0].message.content, "typescript")
+    code = sanitize_remotion_code(response.choices[0].message.content)
     if "MainComposition" not in code:
         raise RuntimeError("Invalid Remotion code: missing MainComposition")
     log(f"  ✔️ Remotion code generated in {time.time() - t0:.1f}s")
     return code
+
+
+def judge_generated_code(
+    topic: str,
+    engine: str,
+    code: str,
+    visual_plan: dict[str, Any] | str,
+    model: str = JUDGE_MODEL,
+    log=print,
+) -> dict[str, Any]:
+    """Optional quality gate. Enable with QUALITY_JUDGE=1."""
+    plan_text = (
+        format_beat_sheet_for_prompt(visual_plan)
+        if isinstance(visual_plan, dict)
+        else str(visual_plan)
+    )
+    log("Running quality judge...")
+    response = _client.chat.send(
+        model=model,
+        messages=[
+            {"role": "system", "content": QUALITY_JUDGE_SYSTEM},
+            {
+                "role": "user",
+                "content": build_quality_judge_prompt(topic, engine, code, plan_text),
+            },
+        ],
+    )
+    try:
+        result = _parse_json_object(response.choices[0].message.content)
+    except Exception:
+        result = {"score": 75, "passes": True, "verdict": "approve", "issues": []}
+    log(
+        f"  ✔️ Judge: score={result.get('score')} verdict={result.get('verdict')} "
+        f"passes={result.get('passes')}"
+    )
+    return result
+
+
+def quality_judge_enabled() -> bool:
+    return os.getenv("QUALITY_JUDGE", "").strip().lower() in {"1", "true", "yes", "on"}

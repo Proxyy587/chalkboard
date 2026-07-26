@@ -1,13 +1,18 @@
 "use client";
 
-import { ChevronDown } from "lucide-react";
-
 import {
   DURATION_OPTIONS,
   LECTURE_MODELS,
   getModelLabel,
 } from "@/lib/chalkboard-api";
 import { cn } from "@/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export function ModelSelector({
   model,
@@ -23,54 +28,47 @@ export function ModelSelector({
   className?: string;
 }) {
   const known = LECTURE_MODELS.some((m) => m.id === model);
+  const durationValue = duration == null ? "auto" : String(duration);
 
   return (
     <div className={cn("flex flex-wrap items-center gap-2", className)}>
-      <label className="relative inline-flex min-w-0 items-center">
-        <span className="sr-only">Model</span>
-        <select
-          value={model}
-          onChange={(e) => onModelChange(e.target.value)}
-          className="lime-focus appearance-none truncate border border-white/12 bg-black/60 py-1.5 pl-2.5 pr-7 text-[11px] text-zinc-200 outline-none max-w-[200px]"
-        >
-          {!known && <option value={model}>{getModelLabel(model)}</option>}
+      <Select value={model} onValueChange={onModelChange}>
+        <SelectTrigger size="sm" className="max-w-[200px] min-w-[140px]">
+          <SelectValue placeholder="Model" />
+        </SelectTrigger>
+        <SelectContent>
+          {!known && (
+            <SelectItem value={model}>{getModelLabel(model)}</SelectItem>
+          )}
           {LECTURE_MODELS.map((m) => (
-            <option key={m.id} value={m.id}>
+            <SelectItem key={m.id} value={m.id}>
               {m.label}
-            </option>
+            </SelectItem>
           ))}
-        </select>
-        <ChevronDown
-          className="pointer-events-none absolute right-2 size-3 text-zinc-600"
-          strokeWidth={1.5}
-        />
-      </label>
+        </SelectContent>
+      </Select>
 
       {onDurationChange && (
-        <label className="relative inline-flex items-center">
-          <span className="sr-only">Duration</span>
-          <select
-            value={duration == null ? "auto" : String(duration)}
-            onChange={(e) => {
-              const v = e.target.value;
-              onDurationChange(v === "auto" ? undefined : Number(v));
-            }}
-            className="lime-focus appearance-none border border-white/12 bg-black/60 py-1.5 pl-2.5 pr-7 text-[11px] text-zinc-200 outline-none"
-          >
+        <Select
+          value={durationValue}
+          onValueChange={(v) =>
+            onDurationChange(v === "auto" ? undefined : Number(v))
+          }
+        >
+          <SelectTrigger size="sm" className="min-w-[110px]">
+            <SelectValue placeholder="Duration" />
+          </SelectTrigger>
+          <SelectContent>
             {DURATION_OPTIONS.map((d) => (
-              <option
+              <SelectItem
                 key={d.label}
                 value={d.value == null ? "auto" : String(d.value)}
               >
                 {d.label}
-              </option>
+              </SelectItem>
             ))}
-          </select>
-          <ChevronDown
-            className="pointer-events-none absolute right-2 size-3 text-zinc-600"
-            strokeWidth={1.5}
-          />
-        </label>
+          </SelectContent>
+        </Select>
       )}
     </div>
   );

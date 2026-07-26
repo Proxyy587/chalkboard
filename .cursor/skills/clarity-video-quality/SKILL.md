@@ -55,8 +55,10 @@ Merger logic: `services/merger.py` — atempo within 20%, else tpad or faster au
 - Render quality: `MANIM_QUALITY=medium|high` in env
 
 ### Remotion (`prompts/remotion_prompt.py`)
-- One `Sequence` per beat, `durationInFrames = duration_sec * 30`
+- One `Sequence` / `Series.Sequence` per beat, `durationInFrames = duration_sec * 30`
+- Prefer `interpolate()` + `Easing` over `spring()` unless bounce is needed
 - `extrapolateLeft/Right: 'clamp'` on all `interpolate()`
+- Research samples in `prompt-docs/` — port selectively; do not import wholesale
 
 ### Narration (`prompts/narration_prompt.py`)
 - ~2.3 words/second

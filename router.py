@@ -61,8 +61,8 @@ def route_prompt(
     if preferred_duration:
         duration = max(15, min(180, int(preferred_duration)))
     else:
-        duration = int(data.get("duration", 55) or 55)
-        duration = max(20, min(120, duration))
+        # Let the beat-sheet planner choose freely (match forced-engine path)
+        duration = None
 
     complexity = str(data.get("complexity", "medium")).lower()
     if complexity not in {"simple", "medium", "complex"}:
@@ -76,4 +76,8 @@ def route_prompt(
         "complexity": complexity,
         "duration": duration,
         "subject": str(data.get("subject", prompt)),
+        # Router still suggests a natural length for logging / UI hints
+        "suggested_duration": max(
+            20, min(120, int(data.get("duration", 55) or 55))
+        ),
     }

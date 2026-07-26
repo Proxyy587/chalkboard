@@ -78,11 +78,22 @@ Do **not** default to 60 seconds. Length should match teaching depth.
 
 | File | Role |
 |------|------|
-| `prompts/router_prompt.py` | manim vs remotion + duration |
-| `prompts/planner_prompt.py` | JSON beat sheet |
+| `prompts/router_prompt.py` | manim vs remotion + duration hint |
+| `prompts/planner_prompt.py` | JSON beat sheet (HOOK→SUMMARY) |
 | `prompts/narration_prompt.py` | Flowing voiceover from beats |
 | `prompts/manim_prompt.py` | Sync-aware Manim code |
-| `prompts/remotion_prompt.py` | Sync-aware Remotion TSX |
+| `prompts/remotion_prompt.py` | Sync-aware Remotion TSX (Easing, Series, charts) |
+| `prompts/quality_prompt.py` | Optional pre-render judge |
+
+**Research samples** (not loaded): `prompt-docs/*.prompt.py` — port selectively into `prompts/`.
+
+## Remotion notes
+
+- Prefer `interpolate` + `Easing` (Remotion LLM guide); `spring` only when bounce is needed
+- Strip markdown fences in `clean_code` / renderer sanitize
+- Retries escalate to a simplified plan (like Manim)
+- Optional: `QUALITY_JUDGE=1` runs a cheap judge before first Remotion render
+- Duration cap for Remotion render: 180s (matches API)
 
 ## Tuning checklist
 
@@ -91,8 +102,9 @@ When a video feels poor:
 - [ ] Beat sheet has enough beats (4–12)? Hook in beat 1?
 - [ ] Narration lines short enough for their `duration_sec`?
 - [ ] Manim using `-qm` or `-qh` (`MANIM_QUALITY`)?
-- [ ] Code comments show `# BEAT N` with matching waits?
+- [ ] Code comments show `# BEAT N` / `{/* BEAT N */}` with matching waits?
 - [ ] Crashes? Check `get_part_by_tex` sanitizer in `services/llm.py`
+- [ ] Remotion fences / imports? Check `clean_code` + `_sanitize_tsx`
 - [ ] Audio ahead/behind visuals? Compare `audio_duration` vs `video_duration` in logs
 
 ## Environment variables
@@ -102,6 +114,8 @@ MANIM_QUALITY=medium          # low | medium | high | 4k
 DEFAULT_MODEL=deepseek/deepseek-v3.2
 PLANNER_MODEL=openai/gpt-4o-mini
 ROUTER_MODEL=openai/gpt-4o-mini
+JUDGE_MODEL=openai/gpt-4o-mini
+QUALITY_JUDGE=0               # set 1 to enable pre-render quality gate
 CLARITY_ENV=vps               # deletes local files after R2 upload
 ```
 

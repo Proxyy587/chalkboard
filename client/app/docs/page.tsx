@@ -1,0 +1,165 @@
+import Link from "next/link";
+
+import { CodeTabs } from "@/components/docs/code-tabs";
+import {
+  DocCallout,
+  DocH1,
+  DocH2,
+  DocLead,
+  DocList,
+  DocP,
+  DocShell,
+  DocTable,
+} from "@/components/docs/doc-primitives";
+import {
+  CREATE_JOB,
+  CREATE_JOB_RESPONSE,
+  asTabs,
+} from "@/lib/docs-examples";
+
+const TOC = [
+  { id: "what", label: "What is manimotion?" },
+  { id: "flow", label: "How a job works" },
+  { id: "endpoints", label: "Endpoints" },
+  { id: "taste", label: "Quick taste" },
+  { id: "next", label: "Where to go next" },
+];
+
+export default function DocsIntroPage() {
+  return (
+    <DocShell toc={TOC}>
+      <p className="mm-label">Get started</p>
+      <DocH1>Introduction</DocH1>
+      <DocLead>
+        manimotion is an HTTP API that turns a STEM prompt into a narrated
+        lecture video. You send a topic. We plan beats, generate voice, animate
+        with Manim or Remotion, sync audio to the cut, and return an MP4 URL.
+      </DocLead>
+
+      <div className="mt-8 grid gap-px border border-white/10 bg-white/10 sm:grid-cols-2">
+        {[
+          {
+            href: "/docs/quickstart",
+            title: "Quickstart",
+            body: "Key → request → poll → MP4 in under 5 minutes.",
+          },
+          {
+            href: "/docs/api",
+            title: "API reference",
+            body: "Every field, status value, and error code.",
+          },
+          {
+            href: "/docs/storage",
+            title: "Storage",
+            body: "Ship finished videos to your R2 / S3 bucket.",
+          },
+          {
+            href: "/docs/engines",
+            title: "Engines",
+            body: "When to force Manim vs Remotion vs auto.",
+          },
+        ].map((card) => (
+          <Link
+            key={card.href}
+            href={card.href}
+            className="mm-grain group block bg-black p-5 transition-colors hover:bg-neutral-950"
+          >
+            <p className="text-[13px] font-medium text-white">{card.title}</p>
+            <p className="mt-1.5 text-[12px] leading-relaxed text-neutral-500">
+              {card.body}
+            </p>
+          </Link>
+        ))}
+      </div>
+
+      <DocH2 id="what">What is manimotion?</DocH2>
+      <DocP>
+        Think of it as “text → lecture video as a service.” Built for apps,
+        tutors, and tools that need explainers on demand — not for editing
+        timelines by hand.
+      </DocP>
+      <DocList>
+        <li>Public API with an <code>x-api-key</code> header</li>
+        <li>Async jobs (create, then poll)</li>
+        <li>Math-heavy scenes (Manim) and motion-graphics scenes (Remotion)</li>
+        <li>Optional BYO storage so MP4s land in your bucket</li>
+      </DocList>
+
+      <DocH2 id="flow">How a job works</DocH2>
+      <DocP>Under the hood, every request goes roughly like this:</DocP>
+      <DocList>
+        <li>Router picks engine (or uses the one you forced)</li>
+        <li>Beat sheet plans visuals + narration + timing together</li>
+        <li>TTS runs first so animation targets real speech length</li>
+        <li>Code is generated, rendered, synced, uploaded</li>
+        <li>
+          You get <code>video_url</code> when <code>status</code> is{" "}
+          <code>completed</code>
+        </li>
+      </DocList>
+      <div className="mt-4">
+        <DocCallout title="Important" tone="accent">
+          <p>
+            The first response is <strong className="text-neutral-200">not</strong>{" "}
+            the video. It is a <code>job_id</code>. Always poll{" "}
+            <code>/video/status/{"{job_id}"}</code>.
+          </p>
+        </DocCallout>
+      </div>
+
+      <DocH2 id="endpoints">Endpoints (the whole public surface)</DocH2>
+      <DocTable
+        headers={["Method", "Path", "Purpose"]}
+        rows={[
+          ["POST", <code key="r">/video/request</code>, "Create a lecture job"],
+          [
+            "GET",
+            <code key="s">/video/status/{"{job_id}"}</code>,
+            "Poll status + video URL",
+          ],
+        ]}
+      />
+
+      <DocH2 id="taste">Quick taste</DocH2>
+      <DocP>
+        Switch language with the tabs. Every example also shows the response
+        shape.
+      </DocP>
+      <CodeTabs
+        className="mt-4"
+        examples={asTabs(CREATE_JOB, {
+          curl: "create.sh",
+          javascript: "create.mjs",
+          python: "create.py",
+        })}
+        response={CREATE_JOB_RESPONSE}
+      />
+
+      <DocH2 id="next">Where to go next</DocH2>
+      <DocP>
+        New to the API? Do the{" "}
+        <Link
+          href="/docs/quickstart"
+          className="text-white underline-offset-2 hover:underline"
+        >
+          Quickstart
+        </Link>
+        . Building for real? Read the{" "}
+        <Link
+          href="/docs/api"
+          className="text-white underline-offset-2 hover:underline"
+        >
+          API reference
+        </Link>
+        . Hacking on the repo? See{" "}
+        <Link
+          href="/docs/contributing"
+          className="text-white underline-offset-2 hover:underline"
+        >
+          Contributing
+        </Link>
+        .
+      </DocP>
+    </DocShell>
+  );
+}

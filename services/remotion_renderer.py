@@ -131,18 +131,31 @@ def _ensure_browser(log=print) -> Optional[str]:
 def _sanitize_tsx(tsx_code: str) -> str:
     import re
 
-    code = tsx_code.strip()
+    code = (tsx_code or "").strip()
+    fence = re.search(r"```(?:typescript|tsx|ts|js|jsx)?\s*\n([\s\S]*?)```", code)
+    if fence:
+        code = fence.group(1).strip()
+    else:
+        code = re.sub(
+            r"^```(?:typescript|tsx|ts|js|jsx)?\s*\n?",
+            "",
+            code,
+            flags=re.MULTILINE,
+        )
+        code = re.sub(r"\n?```\s*$", "", code)
+
+    m = re.search(r"(?m)^(import |export |const |function |type )", code)
+    if m and m.start() > 0:
+        code = code[m.start() :]
+
     if "from 'react'" not in code and 'from "react"' not in code:
         code = "import React from 'react';\n" + code
     if "MainComposition" not in code:
         raise RuntimeError("Generated Remotion code missing MainComposition export")
-    # Soften common LLM mistakes that break Remotion
-    code = code.replace("export default MainComposition", "")
-    # Strip non-ASCII junk sometimes injected by LLMs (e.g. Chinese characters in expressions)
+    code = re.sub(r"export\s+default\s+MainComposition;?", "", code)
     code = re.sub(r"[^\x09\x0A\x0D\x20-\x7E]", "", code)
-    # Fix common broken interpolate key mistakes
     code = code.replace("lowest:", "0,")
-    return code
+    return code.strip()
 
 
 def render_remotion(
@@ -175,8 +188,8 @@ def render_remotion(
     with open(component_path, "w", encoding="utf-8") as f:
         f.write(tsx_code)
 
-    # Cap duration for Remotion render stability
-    duration = max(15, min(int(duration), 120))
+    # Align with API max (180s); keep a floor for short clips
+    duration = max(15, min(int(duration), 180))
     frames = duration * 30
 
     root_path = os.path.join(REMOTION_SRC, "src", "Root.tsx")

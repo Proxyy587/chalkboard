@@ -1,7 +1,15 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Keep Prisma out of the Turbopack/webpack bundle so model delegates
+  // (thread, apiKey, …) resolve from the generated Node client at runtime.
+  serverExternalPackages: ["@prisma/client", "prisma"],
+  async redirects() {
+    return [
+      { source: "/docs/auth", destination: "/docs/api", permanent: true },
+      { source: "/docs/pipeline", destination: "/docs/engines", permanent: true },
+    ];
+  },
 };
 
 export default nextConfig;

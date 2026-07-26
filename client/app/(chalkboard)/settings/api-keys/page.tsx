@@ -1,13 +1,32 @@
 "use client";
 
-import { AlertTriangle, Copy, Plus, Trash2 } from "lucide-react";
+import { Copy, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { setStoredApiKey } from "@/lib/chalkboard-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type ApiKeyRow = {
   id: string;
@@ -26,6 +45,7 @@ export default function ApiKeysSettingsPage() {
   const [creating, setCreating] = useState(false);
   const [createdKey, setCreatedKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [revokeTarget, setRevokeTarget] = useState<ApiKeyRow | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -59,77 +79,49 @@ export default function ApiKeysSettingsPage() {
       if (!res.ok) throw new Error(data.error ?? "Create failed");
       setCreatedKey(data.key);
       setName("");
+      toast.success("API key created");
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Create failed");
+      const msg = e instanceof Error ? e.message : "Create failed";
+      setError(msg);
+      toast.error(msg);
     } finally {
       setCreating(false);
     }
   }
 
-  async function revoke(id: string, keyName: string) {
-    if (!confirm(`Revoke "${keyName}"? This cannot be undone.`)) return;
-    const res = await fetch(`/api/api-keys/${id}`, { method: "DELETE" });
+  async function confirmRevoke() {
+    if (!revokeTarget) return;
+    const target = revokeTarget;
+    setRevokeTarget(null);
+    const res = await fetch(`/api/api-keys/${target.id}`, { method: "DELETE" });
     if (!res.ok) {
       const data = await res.json();
-      setError(data.error ?? "Revoke failed");
+      toast.error(data.error ?? "Revoke failed");
       return;
     }
+    toast.success(`Revoked “${target.name}”`);
     await load();
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-          <h2 className="text-[13px] text-zinc-200">API keys</h2>
-        <p className="mt-1 max-w-lg text-[12px] text-zinc-500">
-          Header{" "}
-          <code className="text-zinc-400">x-api-key: chalk_live_sk_v1_…</code>
+    <div className="space-y-8">
+      <header>
+        <p className="mm-label">Credentials</p>
+        <h2 className="mt-1 text-[1.25rem] font-semibold tracking-tight text-white">
+          API keys
+        </h2>
+        <p className="mt-2 text-[13px] text-neutral-500">
+          Send{" "}
+          <code className="border border-white/10 bg-black px-1.5 py-0.5 text-[11px] text-neutral-400">
+            x-api-key: chalk_live_sk_v1_…
+          </code>{" "}
+          on every worker request.
         </p>
-      </div>
+      </header>
 
-      {createdKey && (
-        <div className="border border-amber-500/40 bg-amber-500/10 p-4">
-          <div className="flex gap-2">
-            <AlertTriangle className="size-4 shrink-0 text-amber-400" />
-            <div className="min-w-0 flex-1 space-y-3">
-              <p className="text-[11px] text-amber-200/90">
-                Copy this key now — it won&apos;t be shown again.
-              </p>
-              <code className="block break-all border border-white/10 bg-black/50 p-2 text-[10px]">
-                {createdKey}
-              </code>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => navigator.clipboard.writeText(createdKey)}
-                >
-                  <Copy className="size-3.5" /> Copy
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setStoredApiKey(createdKey);
-                    setCreatedKey(null);
-                  }}
-                >
-                  Use in this browser
-                </Button>
-                <Button type="button" variant="ghost" size="sm" onClick={() => setCreatedKey(null)}>
-                  Done
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="mm-panel p-4">
-        <Label htmlFor="key-name">Name</Label>
+      <section className="border border-white/10 bg-neutral-950 p-4">
+        <Label htmlFor="key-name">New key name</Label>
         <div className="mt-2 flex flex-wrap gap-2">
           <Input
             id="key-name"
@@ -144,31 +136,44 @@ export default function ApiKeysSettingsPage() {
               }
             }}
           />
-          <Button type="button" onClick={createKey} disabled={creating || !name.trim()}>
+          <button
+            type="button"
+            className="mm-pixel-btn inline-flex items-center gap-1.5 px-3 py-2 disabled:opacity-40"
+            onClick={() => void createKey()}
+            disabled={creating || !name.trim()}
+          >
             <Plus className="size-3.5" />
-            {creating ? "Creating…" : "Create key"}
-          </Button>
+            {creating ? "Creating…" : "Create"}
+          </button>
         </div>
-        {error && <p className="mt-2 text-[13px] text-red-400">{error}</p>}
-      </div>
+        {error && <p className="mt-2 text-[12px] text-red-400">{error}</p>}
+      </section>
 
-      <div className="mm-panel divide-y divide-white/10">
-        {loading && <p className="p-6 text-[11px] text-zinc-600">Loading…</p>}
+      <section className="divide-y divide-white/10 border border-white/10">
+        <div className="flex items-center justify-between px-4 py-2.5">
+          <p className="text-[11px] font-medium tracking-[0.08em] text-neutral-600">
+            ACTIVE KEYS
+          </p>
+          <p className="text-[11px] tabular-nums text-neutral-600">{keys.length}</p>
+        </div>
+        {loading && <p className="p-6 text-[12px] text-neutral-600">Loading…</p>}
         {!loading && keys.length === 0 && (
-          <p className="p-6 text-[11px] text-zinc-600">No keys yet.</p>
+          <p className="p-6 text-[12px] text-neutral-600">
+            No keys yet — create one above.
+          </p>
         )}
         {keys.map((key) => (
           <div
             key={key.id}
-            className="flex items-center justify-between gap-4 p-4"
+            className="flex items-center justify-between gap-4 px-4 py-3.5"
           >
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[12px] text-zinc-200">{key.name}</span>
+                <span className="text-[13px] text-neutral-200">{key.name}</span>
                 <Badge variant="outline">{key.environment}</Badge>
-                <Badge variant="lime">{key.plan}</Badge>
+                <Badge variant="default">{key.plan}</Badge>
               </div>
-              <p className="mt-1 text-[10px] text-zinc-600">
+              <p className="mt-1 text-[11px] text-neutral-600">
                 <code>{key.prefix}…</code> · {key.usageCount} requests
               </p>
             </div>
@@ -177,14 +182,83 @@ export default function ApiKeysSettingsPage() {
               variant="ghost"
               size="sm"
               className="text-red-400"
-              onClick={() => revoke(key.id, key.name)}
+              onClick={() => setRevokeTarget(key)}
             >
               <Trash2 className="size-3.5" />
             </Button>
           </div>
         ))}
-      </div>
+      </section>
+
+      <Dialog
+        open={createdKey != null}
+        onOpenChange={(open) => {
+          if (!open) setCreatedKey(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Copy your API key</DialogTitle>
+            <DialogDescription>
+              This secret is shown once. Store it somewhere safe, then optionally
+              use it in this browser for the demo.
+            </DialogDescription>
+          </DialogHeader>
+          <code className="block break-all border border-white/10 bg-black p-3 text-[12px] text-neutral-300">
+            {createdKey}
+          </code>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                if (!createdKey) return;
+                void navigator.clipboard.writeText(createdKey);
+                toast.success("Copied");
+              }}
+            >
+              <Copy className="size-3.5" /> Copy
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                if (!createdKey) return;
+                setStoredApiKey(createdKey);
+                setCreatedKey(null);
+                toast.success("Saved for this browser");
+              }}
+            >
+              Use in this browser
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog
+        open={revokeTarget != null}
+        onOpenChange={(open) => {
+          if (!open) setRevokeTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Revoke API key?</AlertDialogTitle>
+            <AlertDialogDescription>
+              “{revokeTarget?.name}” will stop working immediately. This cannot
+              be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-500/15 text-red-400 hover:bg-red-500/25"
+              onClick={() => void confirmRevoke()}
+            >
+              Revoke
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
-

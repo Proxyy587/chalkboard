@@ -2,36 +2,37 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { HardDrive, KeyRound, LayoutGrid } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
 const links = [
-  { href: "/settings", label: "Overview" },
-  { href: "/settings/api-keys", label: "API keys" },
-  { href: "/settings/storage", label: "Storage" },
+  { href: "/settings", label: "Overview", icon: LayoutGrid, exact: true },
+  { href: "/settings/api-keys", label: "API keys", icon: KeyRound },
+  { href: "/settings/storage", label: "Storage", icon: HardDrive },
 ];
 
 export function SettingsNav() {
   const pathname = usePathname();
   return (
-    <nav className="flex gap-0 border border-white/10">
-      {links.map((link, i) => {
-        const active =
-          link.href === "/settings"
-            ? pathname === "/settings"
-            : pathname.startsWith(link.href);
+    <nav className="space-y-0.5">
+      {links.map((link) => {
+        const active = link.exact
+          ? pathname === link.href
+          : pathname.startsWith(link.href);
+        const Icon = link.icon;
         return (
           <Link
             key={link.href}
             href={link.href}
             className={cn(
-              "flex-1 px-3 py-2.5 text-center text-[11px] tracking-[0.08em] transition-colors",
-              i > 0 && "border-l border-white/10",
+              "flex items-center gap-2.5 rounded-none px-2.5 py-2 text-[13px] transition-colors",
               active
-                ? "bg-white/[0.06] text-white"
-                : "text-zinc-500 hover:bg-white/[0.03] hover:text-zinc-300"
+                ? "bg-neutral-900 font-medium text-white"
+                : "text-neutral-500 hover:bg-white/[0.03] hover:text-neutral-200"
             )}
           >
+            <Icon className="size-3.5 shrink-0 opacity-70" strokeWidth={1.5} />
             {link.label}
           </Link>
         );

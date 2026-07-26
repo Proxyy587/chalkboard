@@ -10,19 +10,26 @@ export function SessionGate({ children }: { children: React.ReactNode }) {
   const { data: session, isPending } = useSession();
 
   if (isPending) {
-    return <p className="text-[11px] text-zinc-600">Loading session…</p>;
+    return (
+      <div className="border border-white/10 bg-black/40 p-6">
+        <p className="mm-label">Session</p>
+        <p className="mt-2 text-[12px] text-zinc-500">Checking…</p>
+      </div>
+    );
   }
 
   if (!session?.user) {
     return (
-      <div className="mm-panel max-w-md space-y-4 p-5">
-        <p className="mm-label">Sign in</p>
-        <h2 className="text-[14px] text-zinc-200">Account required</h2>
-        <p className="text-[12px] leading-relaxed text-zinc-500">
-          Sign in to manage API keys and storage. You can still try the demo from home without an
-          account.
+      <div className="border border-white/10 bg-black/50 p-6 md:p-8">
+        <p className="mm-label">Locked</p>
+        <h2 className="mt-2 text-[16px] font-semibold tracking-tight text-zinc-100">
+          Sign in to open the console
+        </h2>
+        <p className="mt-2 max-w-sm text-[13px] leading-relaxed text-zinc-500">
+          API keys and storage are tied to your account. The home demo still
+          works without signing in.
         </p>
-        <div className="flex flex-wrap gap-2">
+        <div className="mt-6 flex flex-wrap gap-2">
           <button
             type="button"
             className="mm-pixel-btn px-4 py-2"
@@ -34,7 +41,10 @@ export function SessionGate({ children }: { children: React.ReactNode }) {
             Create account
           </Link>
           <Link href="/" className="mm-ghost-btn inline-flex px-4 py-2">
-            Try demo
+            Demo
+          </Link>
+          <Link href="/docs" className="mm-ghost-btn inline-flex px-4 py-2">
+            Docs
           </Link>
         </div>
       </div>

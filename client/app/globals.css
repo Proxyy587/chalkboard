@@ -7,9 +7,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-mono);
+  --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-pixelify);
+  --font-heading: var(--font-geist-sans);
   --color-mm-accent: var(--mm-accent);
   --color-chalk-lime: var(--mm-accent);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -51,75 +51,76 @@
 }
 
 :root {
-  --mm-accent: #e8ff47;
-  --mm-accent-dim: rgba(232, 255, 71, 0.12);
-  --mm-grid: rgba(255, 255, 255, 0.04);
-  --mm-line: rgba(255, 255, 255, 0.1);
-  --background: #050505;
-  --foreground: #f5f5f5;
+  /* Better Auth–inspired monochrome */
+  --mm-accent: #fafafa;
+  --mm-accent-dim: rgba(255, 255, 255, 0.06);
+  --mm-line: rgba(255, 255, 255, 0.08);
+  --mm-grid: rgba(255, 255, 255, 0.035);
+  --background: #000000;
+  --foreground: #fafafa;
   --card: #0a0a0a;
   --card-foreground: #fafafa;
   --popover: #0a0a0a;
   --popover-foreground: #fafafa;
-  --primary: var(--mm-accent);
-  --primary-foreground: #050505;
-  --secondary: #121212;
-  --secondary-foreground: #e4e4e7;
-  --muted: #121212;
-  --muted-foreground: #8a8a8a;
-  --accent: #141414;
-  --accent-foreground: #f5f5f5;
-  --destructive: oklch(0.62 0.21 26);
-  --border: var(--mm-line);
-  --input: rgba(255, 255, 255, 0.12);
-  --ring: var(--mm-accent);
-  --chart-1: #f5f5f5;
+  --primary: #fafafa;
+  --primary-foreground: #0a0a0a;
+  --secondary: #141414;
+  --secondary-foreground: #e5e5e5;
+  --muted: #111111;
+  --muted-foreground: #a3a3a3;
+  --accent: #171717;
+  --accent-foreground: #fafafa;
+  --destructive: oklch(0.6 0.2 25);
+  --border: rgba(255, 255, 255, 0.09);
+  --input: rgba(255, 255, 255, 0.1);
+  --ring: rgba(255, 255, 255, 0.35);
+  --chart-1: #fafafa;
   --chart-2: #a3a3a3;
   --chart-3: #737373;
   --chart-4: #525252;
   --chart-5: #262626;
   --radius: 0;
-  --sidebar: #070707;
+  --sidebar: #000000;
   --sidebar-foreground: #fafafa;
-  --sidebar-primary: var(--mm-accent);
-  --sidebar-primary-foreground: #050505;
-  --sidebar-accent: #111;
+  --sidebar-primary: #fafafa;
+  --sidebar-primary-foreground: #0a0a0a;
+  --sidebar-accent: #111111;
   --sidebar-accent-foreground: #fafafa;
-  --sidebar-border: var(--mm-line);
-  --sidebar-ring: var(--mm-accent);
-  --chalk-lime: var(--mm-accent);
-  --chalk-lime-soft: var(--mm-accent-dim);
-  --chalk-sidebar-base: #070707;
-  --chalk-main-base: #050505;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-ring: rgba(255, 255, 255, 0.35);
+  --chalk-lime: #fafafa;
+  --chalk-lime-soft: rgba(255, 255, 255, 0.06);
+  --chalk-sidebar-base: #000000;
+  --chalk-main-base: #000000;
 }
 
 .dark {
-  --background: #050505;
-  --foreground: #f5f5f5;
+  --background: #000000;
+  --foreground: #fafafa;
   --card: #0a0a0a;
   --card-foreground: #fafafa;
   --popover: #0a0a0a;
   --popover-foreground: #fafafa;
-  --primary: var(--mm-accent);
-  --primary-foreground: #050505;
-  --secondary: #121212;
-  --secondary-foreground: #e4e4e7;
-  --muted: #121212;
-  --muted-foreground: #8a8a8a;
-  --accent: #141414;
-  --accent-foreground: #f5f5f5;
-  --destructive: oklch(0.62 0.21 26);
-  --border: var(--mm-line);
-  --input: rgba(255, 255, 255, 0.12);
-  --ring: var(--mm-accent);
-  --sidebar: #070707;
+  --primary: #fafafa;
+  --primary-foreground: #0a0a0a;
+  --secondary: #141414;
+  --secondary-foreground: #e5e5e5;
+  --muted: #111111;
+  --muted-foreground: #a3a3a3;
+  --accent: #171717;
+  --accent-foreground: #fafafa;
+  --destructive: oklch(0.6 0.2 25);
+  --border: rgba(255, 255, 255, 0.09);
+  --input: rgba(255, 255, 255, 0.1);
+  --ring: rgba(255, 255, 255, 0.35);
+  --sidebar: #000000;
   --sidebar-foreground: #fafafa;
-  --sidebar-primary: var(--mm-accent);
-  --sidebar-primary-foreground: #050505;
-  --sidebar-accent: #111;
+  --sidebar-primary: #fafafa;
+  --sidebar-primary-foreground: #0a0a0a;
+  --sidebar-accent: #111111;
   --sidebar-accent-foreground: #fafafa;
-  --sidebar-border: var(--mm-line);
-  --sidebar-ring: var(--mm-accent);
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-ring: rgba(255, 255, 255, 0.35);
 }
 
 @layer base {
@@ -127,76 +128,68 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply text-foreground;
-    background-color: var(--background);
-    background-image:
-      linear-gradient(var(--mm-grid) 1px, transparent 1px),
+    @apply bg-background text-foreground antialiased;
+    background-color: #000;
+    background-image: linear-gradient(var(--mm-grid) 1px, transparent 1px),
       linear-gradient(90deg, var(--mm-grid) 1px, transparent 1px);
-    background-size: 24px 24px;
+    background-size: 48px 48px;
     background-attachment: fixed;
-    image-rendering: pixelated;
   }
   html {
-    @apply font-mono;
+    @apply font-sans;
   }
   ::selection {
-    background: var(--mm-accent);
-    color: #050505;
+    background: #fafafa;
+    color: #000;
   }
 }
 
 @layer utilities {
   .mm-brand,
   .chalk-brand {
-    font-family: var(--font-pixelify), var(--font-geist-mono), ui-monospace, monospace;
-    color: #fff;
-    letter-spacing: 0.04em;
-    image-rendering: pixelated;
+    font-family: var(--font-geist-sans), system-ui, sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.04em;
+    color: #fafafa;
+    text-transform: uppercase;
   }
 
   .mm-panel,
   .chalk-panel {
     border: 1px solid var(--mm-line);
-    background: rgba(8, 8, 8, 0.92);
+    background: #0a0a0a;
   }
 
   .mm-sidebar,
   .chalk-sidebar {
-    position: relative;
-    background: #070707;
+    background: #000;
     border-right: 1px solid var(--mm-line);
   }
 
   .mm-main,
   .chalk-main-surface {
-    position: relative;
     background: transparent;
   }
 
   .mm-label {
-    font-size: 10px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 0.02em;
     color: #737373;
+    font-weight: 500;
   }
 
   .mm-pixel-btn {
-    border: 1px solid var(--mm-accent);
-    background: var(--mm-accent);
-    color: #050505;
-    font-size: 11px;
+    border: 1px solid #fafafa;
+    background: #fafafa;
+    color: #0a0a0a;
+    font-size: 13px;
     font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    transition: filter 0.15s ease, transform 0.1s ease;
+    letter-spacing: -0.01em;
+    transition: opacity 0.15s ease, background 0.15s ease;
   }
 
   .mm-pixel-btn:hover:not(:disabled) {
-    filter: brightness(1.08);
-  }
-
-  .mm-pixel-btn:active:not(:disabled) {
-    transform: translate(1px, 1px);
+    opacity: 0.9;
   }
 
   .mm-pixel-btn:disabled {
@@ -207,86 +200,35 @@
   .mm-ghost-btn {
     border: 1px solid var(--mm-line);
     background: transparent;
-    color: #a3a3a3;
-    font-size: 11px;
-    letter-spacing: 0.06em;
-    transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+    color: #e5e5e5;
+    font-size: 13px;
+    font-weight: 500;
+    transition: border-color 0.15s ease, background 0.15s ease;
   }
 
   .mm-ghost-btn:hover:not(:disabled) {
-    border-color: rgba(255, 255, 255, 0.25);
-    color: #f5f5f5;
+    border-color: rgba(255, 255, 255, 0.2);
     background: rgba(255, 255, 255, 0.03);
   }
 
   .lime-focus:focus-visible {
     outline: none;
-    box-shadow: 0 0 0 1px var(--mm-accent);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.45);
   }
 
-  .mm-scan {
-    position: relative;
+  .mm-grain {
+    background-image: radial-gradient(
+        rgba(255, 255, 255, 0.045) 0.5px,
+        transparent 0.5px
+      ),
+      radial-gradient(rgba(255, 255, 255, 0.03) 0.5px, transparent 0.5px);
+    background-size: 3px 3px, 7px 7px;
+    background-position: 0 0, 1px 2px;
   }
 
-  .mm-scan::after {
-    content: "";
-    pointer-events: none;
-    position: absolute;
-    inset: 0;
-    background: repeating-linear-gradient(
-      0deg,
-      transparent,
-      transparent 2px,
-      rgba(0, 0, 0, 0.08) 2px,
-      rgba(0, 0, 0, 0.08) 3px
-    );
-    opacity: 0.35;
-  }
-
-  @keyframes mm-blink {
-    0%,
-    49% {
-      opacity: 1;
-    }
-    50%,
-    100% {
-      opacity: 0;
-    }
-  }
-
-  .mm-cursor {
-    display: inline-block;
-    width: 0.55em;
-    height: 1em;
-    margin-left: 2px;
-    background: var(--mm-accent);
-    vertical-align: text-bottom;
-    animation: mm-blink 1s step-end infinite;
-  }
-
-  @keyframes mm-fade-up {
-    from {
-      opacity: 0;
-      transform: translateY(8px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  .mm-enter {
-    animation: mm-fade-up 0.45s ease-out both;
-  }
-
-  .mm-enter-delay-1 {
-    animation-delay: 0.08s;
-  }
-  .mm-enter-delay-2 {
-    animation-delay: 0.16s;
-  }
-  .mm-enter-delay-3 {
-    animation-delay: 0.24s;
+  .mm-feature-cell {
+    border-right: 1px solid var(--mm-line);
+    border-bottom: 1px solid var(--mm-line);
   }
 }
 
@@ -297,8 +239,5 @@
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
-  }
-  .mm-cursor {
-    animation: none;
   }
 }

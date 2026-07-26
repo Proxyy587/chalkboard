@@ -23,6 +23,7 @@ model User {
 
   apiKeys             ApiKey[]
   storageIntegrations StorageIntegration[]
+  threads             Thread[]
 
   @@map("user")
 }
@@ -193,4 +194,58 @@ enum StorageProvider {
   BACKBLAZE
   MINIO
   CUSTOM_S3
+}
+
+// ─── Lecture threads (synced from demo UI when signed in) ─────────────────────
+
+model Thread {
+  id     String @id @default(cuid())
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title    String
+  model    String  @default("deepseek/deepseek-v3.2")
+  duration Int?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  messages ThreadMessage[]
+  videos   ThreadVideo[]
+
+  @@index([userId, updatedAt])
+  @@map("threads")
+}
+
+model ThreadMessage {
+  id       String @id @default(cuid())
+  threadId String @map("thread_id")
+  thread   Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  role      String
+  content   String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([threadId])
+  @@map("thread_messages")
+}
+
+model ThreadVideo {
+  id       String @id @default(cuid())
+  threadId String @map("thread_id")
+  thread   Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  title    String
+  status   String  @default("queued")
+  jobId    String? @map("job_id")
+  videoUrl String? @map("video_url") @db.Text
+  error    String? @db.Text
+  cached   Boolean @default(false)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([threadId, createdAt])
+  @@index([jobId])
+  @@map("thread_videos")
 }

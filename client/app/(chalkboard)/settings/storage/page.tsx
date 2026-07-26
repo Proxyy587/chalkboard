@@ -2,11 +2,37 @@
 
 import { Plus, Trash2, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type Provider = "R2" | "S3" | "UPLOADTHING" | "MINIO" | "CUSTOM_S3" | "BACKBLAZE";
 
@@ -38,8 +64,8 @@ export default function StorageSettingsPage() {
   const [provider, setProvider] = useState<Provider>("R2");
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
+  const [removeId, setRemoveId] = useState<string | null>(null);
 
-  // R2 / S3 fields
   const [accessKeyId, setAccessKeyId] = useState("");
   const [secretAccessKey, setSecretAccessKey] = useState("");
   const [accountId, setAccountId] = useState("");
@@ -121,17 +147,27 @@ export default function StorageSettingsPage() {
       setAccountId("");
       setBucketName("");
       setUploadThingToken("");
+      toast.success("Storage saved");
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Save failed");
+      const msg = e instanceof Error ? e.message : "Save failed";
+      setError(msg);
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
   }
 
-  async function remove(id: string) {
-    if (!confirm("Remove this storage integration?")) return;
-    await fetch(`/api/storage/${id}`, { method: "DELETE" });
+  async function confirmRemove() {
+    if (!removeId) return;
+    const id = removeId;
+    setRemoveId(null);
+    const res = await fetch(`/api/storage/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      toast.error("Remove failed");
+      return;
+    }
+    toast.success("Storage removed");
     await load();
   }
 
@@ -139,10 +175,10 @@ export default function StorageSettingsPage() {
     const res = await fetch(`/api/storage/${id}`, { method: "POST" });
     const data = await res.json();
     if (data.success) {
-      alert("Connection OK");
+      toast.success("Connection OK");
       await load();
     } else {
-      alert(data.error ?? "Connection failed");
+      toast.error(data.error ?? "Connection failed");
     }
   }
 
@@ -150,152 +186,223 @@ export default function StorageSettingsPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-[13px] text-zinc-200">Storage</h2>
-          <p className="mt-1 max-w-lg text-[12px] text-zinc-500">
-            Videos upload to your bucket when configured. Credentials encrypted at rest.
+          <p className="mm-label">Buckets</p>
+          <h2 className="mt-1 text-[1.25rem] font-semibold tracking-tight text-white">
+            Storage
+          </h2>
+          <p className="mt-2 max-w-lg text-[13px] text-neutral-500">
+            Videos upload to your bucket when configured. Credentials encrypted
+            at rest.
           </p>
         </div>
-        <Button type="button" onClick={() => setShowForm((v) => !v)}>
+        <Button type="button" onClick={() => setShowForm(true)}>
           <Plus className="size-3.5" />
           Add storage
         </Button>
       </div>
 
-      {showForm && (
-        <div className="mm-panel space-y-4 p-4">
-          <div className="grid gap-4 md:grid-cols-2">
+      <Dialog open={showForm} onOpenChange={setShowForm}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Add storage</DialogTitle>
+            <DialogDescription>
+              Connect R2, S3, or another compatible bucket for finished MP4s.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4">
             <div>
               <Label>Name</Label>
-              <Input className="mt-2" value={name} onChange={(e) => setName(e.target.value)} placeholder="My R2 bucket" />
+              <Input
+                className="mt-2"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="My R2 bucket"
+              />
             </div>
             <div>
               <Label>Provider</Label>
-              <select
-                className="mt-2 flex h-9 w-full border border-white/15 bg-black/40 px-3 text-[11px] text-zinc-100"
+              <Select
                 value={provider}
-                onChange={(e) => setProvider(e.target.value as Provider)}
+                onValueChange={(v) => setProvider(v as Provider)}
               >
-                {PROVIDERS.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.label}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="mt-2 w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PROVIDERS.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
+
+            {provider === "UPLOADTHING" ? (
+              <div>
+                <Label>API token</Label>
+                <Input
+                  className="mt-2"
+                  type="password"
+                  value={uploadThingToken}
+                  onChange={(e) => setUploadThingToken(e.target.value)}
+                />
+              </div>
+            ) : provider === "R2" ? (
+              <>
+                <div>
+                  <Label>Account ID</Label>
+                  <Input
+                    className="mt-2"
+                    value={accountId}
+                    onChange={(e) => setAccountId(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label>Access key ID</Label>
+                  <Input
+                    className="mt-2"
+                    value={accessKeyId}
+                    onChange={(e) => setAccessKeyId(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label>Secret access key</Label>
+                  <Input
+                    className="mt-2"
+                    type="password"
+                    value={secretAccessKey}
+                    onChange={(e) => setSecretAccessKey(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label>Bucket</Label>
+                  <Input
+                    className="mt-2"
+                    value={bucketName}
+                    onChange={(e) => setBucketName(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label>Public URL (optional)</Label>
+                  <Input
+                    className="mt-2"
+                    value={publicUrl}
+                    onChange={(e) => setPublicUrl(e.target.value)}
+                    placeholder="https://cdn.example.com"
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <Label>Access key ID</Label>
+                  <Input
+                    className="mt-2"
+                    value={accessKeyId}
+                    onChange={(e) => setAccessKeyId(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label>Secret access key</Label>
+                  <Input
+                    className="mt-2"
+                    type="password"
+                    value={secretAccessKey}
+                    onChange={(e) => setSecretAccessKey(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label>Bucket</Label>
+                  <Input
+                    className="mt-2"
+                    value={bucketName}
+                    onChange={(e) => setBucketName(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label>Region</Label>
+                  <Input
+                    className="mt-2"
+                    value={region}
+                    onChange={(e) => setRegion(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label>Endpoint (optional)</Label>
+                  <Input
+                    className="mt-2"
+                    value={endpoint}
+                    onChange={(e) => setEndpoint(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label>Public URL (optional)</Label>
+                  <Input
+                    className="mt-2"
+                    value={publicUrl}
+                    onChange={(e) => setPublicUrl(e.target.value)}
+                  />
+                </div>
+              </>
+            )}
+            {error && <p className="text-[12px] text-red-400">{error}</p>}
           </div>
 
-          {provider === "UPLOADTHING" ? (
-            <div>
-              <Label>API token</Label>
-              <Input
-                className="mt-2"
-                type="password"
-                value={uploadThingToken}
-                onChange={(e) => setUploadThingToken(e.target.value)}
-              />
-            </div>
-          ) : provider === "R2" ? (
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <Label>Account ID</Label>
-                <Input className="mt-2" value={accountId} onChange={(e) => setAccountId(e.target.value)} />
-              </div>
-              <div>
-                <Label>Bucket</Label>
-                <Input className="mt-2" value={bucketName} onChange={(e) => setBucketName(e.target.value)} />
-              </div>
-              <div>
-                <Label>Access key ID</Label>
-                <Input className="mt-2" value={accessKeyId} onChange={(e) => setAccessKeyId(e.target.value)} />
-              </div>
-              <div>
-                <Label>Secret access key</Label>
-                <Input
-                  className="mt-2"
-                  type="password"
-                  value={secretAccessKey}
-                  onChange={(e) => setSecretAccessKey(e.target.value)}
-                />
-              </div>
-              <div className="md:col-span-2">
-                <Label>Public URL (optional CDN)</Label>
-                <Input className="mt-2" value={publicUrl} onChange={(e) => setPublicUrl(e.target.value)} placeholder="https://pub-xxx.r2.dev" />
-              </div>
-            </div>
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <Label>Bucket</Label>
-                <Input className="mt-2" value={bucketName} onChange={(e) => setBucketName(e.target.value)} />
-              </div>
-              <div>
-                <Label>Region</Label>
-                <Input className="mt-2" value={region} onChange={(e) => setRegion(e.target.value)} />
-              </div>
-              <div>
-                <Label>Access key ID</Label>
-                <Input className="mt-2" value={accessKeyId} onChange={(e) => setAccessKeyId(e.target.value)} />
-              </div>
-              <div>
-                <Label>Secret access key</Label>
-                <Input
-                  className="mt-2"
-                  type="password"
-                  value={secretAccessKey}
-                  onChange={(e) => setSecretAccessKey(e.target.value)}
-                />
-              </div>
-              <div className="md:col-span-2">
-                <Label>Endpoint (for MinIO / custom S3)</Label>
-                <Input className="mt-2" value={endpoint} onChange={(e) => setEndpoint(e.target.value)} />
-              </div>
-              <div className="md:col-span-2">
-                <Label>Public URL prefix</Label>
-                <Input className="mt-2" value={publicUrl} onChange={(e) => setPublicUrl(e.target.value)} />
-              </div>
-            </div>
-          )}
-
-          {error && <p className="text-[11px] text-red-400">{error}</p>}
-          <div className="flex gap-2">
-            <Button type="button" onClick={saveIntegration} disabled={saving || !name.trim()}>
-              {saving ? "Testing & saving…" : "Save integration"}
-            </Button>
+          <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setShowForm(false)}>
               Cancel
             </Button>
-          </div>
-        </div>
-      )}
+            <Button
+              type="button"
+              disabled={saving || !name.trim()}
+              onClick={() => void saveIntegration()}
+            >
+              {saving ? "Saving…" : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-      <div className="border border-white/10 divide-y divide-white/10">
-        {loading && <p className="p-6 text-[11px] text-zinc-600">Loading…</p>}
+      <section className="divide-y divide-white/10 border border-white/10">
+        <div className="flex items-center justify-between px-4 py-2.5">
+          <p className="text-[11px] font-medium tracking-[0.08em] text-neutral-600">
+            INTEGRATIONS
+          </p>
+          <p className="text-[11px] tabular-nums text-neutral-600">
+            {integrations.length}
+          </p>
+        </div>
+        {loading && <p className="p-6 text-[12px] text-neutral-600">Loading…</p>}
         {!loading && integrations.length === 0 && (
-          <p className="p-6 text-[11px] text-zinc-600">
-            No storage configured — videos use the server default bucket.
+          <p className="p-6 text-[12px] text-neutral-600">
+            No storage yet — add a bucket to upload finished lectures.
           </p>
         )}
         {integrations.map((row) => (
-          <div key={row.id} className="flex flex-wrap items-center justify-between gap-4 p-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-[12px] text-zinc-200">{row.name}</span>
+          <div
+            key={row.id}
+            className="flex items-center justify-between gap-4 px-4 py-3.5"
+          >
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[13px] text-neutral-200">{row.name}</span>
                 <Badge variant="outline">{row.provider}</Badge>
-                {row.isVerified ? (
-                  <Badge variant="lime">verified</Badge>
-                ) : (
-                  <Badge variant="secondary">unverified</Badge>
-                )}
+                {row.isVerified && <Badge variant="default">verified</Badge>}
               </div>
-              <p className="mt-1 text-[10px] text-zinc-600">
-                <code className="text-zinc-500">{row.id}</code>
-                <span className="mx-2">·</span>
-                {row.bucketName}
-                {row.publicUrl && ` · ${row.publicUrl}`}
+              <p className="mt-1 text-[11px] text-neutral-600">
+                <code className="text-neutral-500">{row.id}</code>
+                {row.bucketName ? ` · ${row.bucketName}` : ""}
               </p>
             </div>
-            <div className="flex gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => test(row.id)}>
+            <div className="flex items-center gap-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => void test(row.id)}
+              >
                 <RefreshCw className="size-3.5" />
               </Button>
               <Button
@@ -303,31 +410,40 @@ export default function StorageSettingsPage() {
                 variant="ghost"
                 size="sm"
                 className="text-red-400"
-                onClick={() => remove(row.id)}
+                onClick={() => setRemoveId(row.id)}
               >
                 <Trash2 className="size-3.5" />
               </Button>
             </div>
           </div>
         ))}
-      </div>
+      </section>
 
-      <div className="border border-white/10 bg-black/20 p-4">
-        <p className="mm-label">Use in API</p>
-        <p className="mt-2 text-[11px] leading-relaxed text-zinc-500">
-          Pass <code className="text-zinc-400">storage.integration_id</code> with the id above, or inline
-          R2/S3 credentials per request (never stored — job-scoped only).
-        </p>
-        <pre className="mt-3 overflow-x-auto border border-white/10 bg-black/50 p-3 text-[9px] text-zinc-400">
-{`curl -X POST http://localhost:8000/video/request \\
-  -H "x-api-key: chalk_live_sk_v1_..." \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "prompt": "Explain eigenvectors",
-    "storage": { "integration_id": "YOUR_INTEGRATION_ID" }
-  }'`}
-        </pre>
-      </div>
+      <AlertDialog
+        open={removeId != null}
+        onOpenChange={(open) => {
+          if (!open) setRemoveId(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove storage?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Existing videos stay in your bucket. New jobs will use the default
+              worker storage unless you pass another integration.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-500/15 text-red-400 hover:bg-red-500/25"
+              onClick={() => void confirmRemove()}
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

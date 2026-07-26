@@ -69,7 +69,7 @@ export default function ThreadPage() {
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               rows={8}
-              className="lime-focus min-h-[140px] flex-1 resize-none border border-white/12 bg-black/50 px-3 py-3 text-[13px] leading-relaxed text-zinc-200 placeholder:text-zinc-600"
+              className="lime-focus min-h-[140px] flex-1 resize-none border border-white/12 bg-black px-3 py-3 text-[13px] leading-relaxed text-neutral-200 placeholder:text-neutral-600"
               placeholder="Describe the lecture…"
             />
             {dirty && (

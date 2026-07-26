@@ -118,7 +118,11 @@ export type JobStatusResponse = {
 
 async function readApiError(res: Response): Promise<string> {
   try {
-    const j = (await res.json()) as { detail?: unknown };
+    const j = (await res.json()) as {
+      detail?: unknown;
+      error?: unknown;
+    };
+    if (typeof j.error === "string") return j.error;
     const d = j.detail;
     if (typeof d === "string") return d;
     if (Array.isArray(d))
@@ -140,17 +144,28 @@ export async function createLectureJob(
   model: string,
   opts?: { engine?: "auto" | "manim" | "remotion"; duration?: number }
 ): Promise<JobCreateResponse> {
-  const base = getChalkboardApiBase();
+  const prompt =
+    [...messages].reverse().find((m) => m.role === "user")?.content?.trim() ||
+    messages.map((m) => m.content).join("\n").trim();
+  if (!prompt) throw new Error("prompt is required");
+
   const body: Record<string, unknown> = {
-    messages,
+    prompt,
     model: model.trim() || DEFAULT_LECTURE_MODEL,
     engine: opts?.engine ?? "auto",
   };
   if (opts?.duration != null) body.duration = opts.duration;
 
-  const res = await fetch(`${base}/generate-lecture`, {
+  const headers = apiHeaders();
+  if (!headers["x-api-key"]) {
+    throw new Error(
+      "Missing API key. Create one in Settings → API keys, then click “Use in this browser”."
+    );
+  }
+
+  const res = await fetch("/api/video/request", {
     method: "POST",
-    headers: apiHeaders(),
+    headers,
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(await readApiError(res));
@@ -158,8 +173,11 @@ export async function createLectureJob(
 }
 
 export async function fetchJobStatus(jobId: string): Promise<JobStatusResponse> {
-  const base = getChalkboardApiBase();
-  const res = await fetch(`${base}/jobs/${jobId}`);
+  const headers = apiHeaders();
+  const res = await fetch(`/api/video/status/${encodeURIComponent(jobId)}`, {
+    headers,
+    cache: "no-store",
+  });
   if (!res.ok) throw new Error(await readApiError(res));
   return res.json() as Promise<JobStatusResponse>;
 }

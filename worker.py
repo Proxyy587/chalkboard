@@ -94,19 +94,36 @@ async def _run_remotion_pipeline(
     complexity: str,
     job_id: str,
     output_dir: str,
-    max_attempts: int = 3,
+    max_attempts: int = 4,
 ) -> tuple[Optional[str], Optional[str]]:
+    from services.llm import judge_generated_code, quality_judge_enabled
+
     last_error = None
     previous_code = None
+    plan_text = format_beat_sheet_for_prompt(visual_plan)
     for attempt in range(1, max_attempts + 1):
-        log(f"\n🧠 Remotion attempt {attempt}/{max_attempts}")
+        attempt_complexity = complexity
+        attempt_plan: dict[str, Any] | str = visual_plan
+        if attempt >= 2:
+            attempt_complexity = "simple"
+        if attempt >= 3:
+            attempt_plan = (
+                "Keep it VERY simple and compile-proof:\n"
+                "1) AbsoluteFill dark bg #0B1020\n"
+                "2) One title Sequence, then 2–4 Series.Sequence content slides\n"
+                "3) Text + simple SVG or bars only — no complex filters\n"
+                "4) interpolate with clamp + Easing.out(Easing.cubic)\n"
+                "5) No emoji, no external assets\n"
+                f"Original plan intent (simplify heavily):\n{plan_text[:1200]}"
+            )
+        log(f"\n🧠 Remotion attempt {attempt}/{max_attempts} (complexity={attempt_complexity})")
         try:
             code = generate_remotion_code(
                 topic=topic,
                 model=model,
-                visual_plan=visual_plan,
+                visual_plan=attempt_plan,
                 duration=duration,
-                complexity=complexity,
+                complexity=attempt_complexity,
                 error=last_error,
                 previous_code=previous_code,
                 log=log,
@@ -115,6 +132,29 @@ async def _run_remotion_pipeline(
             last_error = str(e)
             log(f"  ❌ Code generation failed: {last_error}")
             continue
+
+        if quality_judge_enabled() and attempt == 1:
+            judgment = judge_generated_code(
+                topic=topic,
+                engine="remotion",
+                code=code,
+                visual_plan=visual_plan,
+                log=log,
+            )
+            verdict = str(judgment.get("verdict", "approve")).lower()
+            score = int(judgment.get("score") or 0)
+            if verdict == "regenerate" or score < 50:
+                last_error = (
+                    "Quality judge rejected code: "
+                    + "; ".join(
+                        str(i.get("description", ""))
+                        for i in (judgment.get("issues") or [])[:3]
+                    )
+                )
+                previous_code = code
+                log("  ⚠️ Judge requested regenerate — retrying...")
+                continue
+
         previous_code = code
         video, err = render_remotion(
             tsx_code=code,

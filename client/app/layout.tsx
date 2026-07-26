@@ -1,21 +1,21 @@
 import type { Metadata } from "next";
-import { Geist_Mono, Pixelify_Sans } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
+import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
+
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
 });
 
-const pixelifySans = Pixelify_Sans({
-  variable: "--font-pixelify",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-});
-
 export const metadata: Metadata = {
   title: "manimotion",
-  description: "Turn any STEM idea into a motion lecture — try the demo free.",
+  description: "STEM motion lectures — plan, narrate, animate, sync.",
 };
 
 export default function RootLayout({
@@ -26,10 +26,11 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistMono.variable} ${pixelifySans.variable} dark h-full overflow-hidden antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} dark h-full overflow-hidden`}
     >
-      <body className="h-dvh overflow-hidden bg-[var(--background)] font-mono text-[13px] leading-relaxed text-zinc-100">
+      <body className="h-dvh overflow-hidden bg-black font-sans text-[14px] leading-relaxed text-neutral-100 antialiased">
         {children}
+        <Toaster />
       </body>
     </html>
   );

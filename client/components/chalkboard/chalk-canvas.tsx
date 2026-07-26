@@ -93,8 +93,8 @@ export function ChalkCanvas({
                   className={cn(
                     "flex shrink-0 items-center gap-2 px-2 py-2 text-left text-[10px] transition-colors md:w-full",
                     active
-                      ? "bg-white/[0.06] text-[var(--mm-accent)]"
-                      : "text-zinc-500 hover:bg-white/[0.03] hover:text-zinc-300"
+                      ? "rounded-none bg-neutral-900 text-white"
+                      : "rounded-none text-neutral-500 hover:bg-white/[0.03] hover:text-neutral-300"
                   )}
                 >
                   <span className="line-clamp-1 flex-1">{v.title}</span>
