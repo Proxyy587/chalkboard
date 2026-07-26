@@ -33,8 +33,10 @@ export function DocsToc({
 
   return (
     <div className="sticky top-8">
-      <p className="mb-3 text-[11px] font-medium text-neutral-600">On this page</p>
-      <ul className="relative space-y-1 border-l border-white/10 pl-3">
+      <p className="mb-3 text-[11px] font-medium text-[var(--muted-2)]">
+        On this page
+      </p>
+      <ul className="relative space-y-1 border-l border-border pl-3">
         {items.map((item) => (
           <li key={item.id}>
             <a
@@ -42,8 +44,8 @@ export function DocsToc({
               className={cn(
                 "block py-1 text-[12px] transition-colors",
                 active === item.id
-                  ? "text-white"
-                  : "text-neutral-600 hover:text-neutral-300"
+                  ? "text-foreground"
+                  : "text-[var(--muted-2)] hover:text-[var(--ink-soft)]"
               )}
             >
               {item.label}

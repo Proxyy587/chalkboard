@@ -30,7 +30,7 @@ export default function DocsContributingPage() {
         public API? Start at the{" "}
         <Link
           href="/docs"
-          className="text-white underline-offset-2 hover:underline"
+          className="text-foreground underline-offset-2 hover:underline"
         >
           Introduction
         </Link>

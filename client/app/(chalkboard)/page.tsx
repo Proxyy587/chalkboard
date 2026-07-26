@@ -1,12 +1,16 @@
 "use client";
 
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, BookOpen } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { useChalkboard } from "@/components/chalkboard/chalkboard-context";
 import { ModelSelector } from "@/components/chalkboard/model-selector";
+import { AccountMenu, HistoryMenu } from "@/components/account/account-menu";
+import { LandingMark } from "@/components/landing/landing-mark";
+import { ThemeToggle } from "@/components/theme/theme-provider";
+import { useSession } from "@/lib/auth-client";
 import { useMountEffect } from "@/hooks/use-mount-effect";
 import {
   DEFAULT_LECTURE_MODEL,
@@ -15,6 +19,7 @@ import {
   setPreferredDuration,
   setPreferredModel,
 } from "@/lib/chalkboard-api";
+import "@/app/landing.css";
 
 const DEMO_PROMPTS = [
   {
@@ -56,25 +61,40 @@ const FEATURES = [
   },
   {
     n: "03",
-    title: "BYO storage",
-    body: "Ship MP4s to your R2/S3 bucket with hashed API keys.",
+    title: "Public API",
+    body: "x-api-key auth, async jobs, BYO R2/S3 storage when you need it.",
   },
 ];
 
 export default function LandingPage() {
   const router = useRouter();
   const { createThreadFromPrompt } = useChalkboard();
+  const { data: session } = useSession();
   const [value, setValue] = useState("");
   const [model, setModel] = useState(DEFAULT_LECTURE_MODEL);
   const [duration, setDuration] = useState<number | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const [prefsReady, setPrefsReady] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const [rootEl, setRootEl] = useState<HTMLDivElement | null>(null);
 
   useMountEffect(() => {
     setModel(getPreferredModel());
     setDuration(getPreferredDuration());
     setPrefsReady(true);
   });
+
+  useEffect(() => {
+    if (!rootEl) return;
+    const el = rootEl;
+    function onScroll() {
+      setScrolled(el.scrollTop > 48);
+    }
+    onScroll();
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [rootEl]);
 
   const submit = useCallback(
     (text: string) => {
@@ -90,142 +110,230 @@ export default function LandingPage() {
     [busy, createThreadFromPrompt, duration, model, router]
   );
 
+  async function copyCmd() {
+    await navigator.clipboard.writeText(
+      'curl -X POST "$MANIMOTION_API/video/request" -H "x-api-key: $KEY"'
+    );
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1600);
+  }
+
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-y-auto">
-      <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-12 px-6 py-10 md:px-10 md:py-14">
-        <section className="grid gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-end">
-          <div>
-            <p className="text-[12px] font-medium text-neutral-500">
-              Open demo · no account required
+    <div ref={setRootEl} className="lp-root">
+      <div className={`lp-corner ${scrolled ? "hide" : ""}`}>
+        <span>v0.1</span>
+        {!session?.user && <HistoryMenu />}
+        <ThemeToggle />
+      </div>
+
+      <header className={`lp-topbar ${scrolled ? "show" : ""}`}>
+        <Link href="/" className="brand">
+          manimotion
+        </Link>
+        <div className="spacer" />
+        <Link href="/docs" className="lp-topbar-link desktop-only">
+          Docs
+        </Link>
+        <Link href="/settings" className="lp-topbar-link desktop-only">
+          Settings
+        </Link>
+        {session?.user ? (
+          <AccountMenu />
+        ) : (
+          <>
+            <HistoryMenu />
+            <Link href="/sign-in" className="lp-topbar-link">
+              Sign in
+            </Link>
+          </>
+        )}
+        <span className="ver">v0.1</span>
+        <ThemeToggle />
+      </header>
+
+      <section className="lp-hero">
+        <h1 className="lp-wordmark">manimotion</h1>
+        <LandingMark />
+        <p className="lp-subtitle">
+          STEM lectures as motion graphics — for talks, tutors, and products.
+        </p>
+        <p className="lp-position">
+          Describe a topic. We plan beats, narrate, animate with{" "}
+          <b>Manim</b> or <b>Remotion</b>, and sync audio to the cut. Open demo —
+          no account required.
+        </p>
+
+        <div className="lp-cmd">
+          <code>
+            curl -X POST $API/video/request -H &quot;x-api-key: $KEY&quot;
+          </code>
+          <button type="button" className="copy" onClick={() => void copyCmd()}>
+            {copied ? "Copied" : "Copy"}
+          </button>
+        </div>
+
+        <div className="lp-cta-row">
+          <button
+            type="button"
+            className="lp-btn primary"
+            onClick={() => document.getElementById("landing-input")?.focus()}
+          >
+            Try the demo
+            <ArrowUpRight className="size-3.5" strokeWidth={1.75} />
+          </button>
+          <Link href="/docs" className="lp-btn">
+            <BookOpen className="size-3.5" strokeWidth={1.5} />
+            Read the docs
+          </Link>
+        </div>
+
+        <p className="lp-linkrow">
+          <Link href="/docs/quickstart">Quickstart</Link>
+          <span className="dot">·</span>
+          <Link href="/docs/api">API</Link>
+          <span className="dot">·</span>
+          <Link href="/settings/api-keys">Get an API key</Link>
+        </p>
+      </section>
+
+      <hr className="lp-rule" />
+
+      <div className="lp-wrap">
+        <article className="lp-article">
+          <section id="generate">
+            <h2>Generate a lecture</h2>
+            <p>
+              Type a STEM topic below. Pick a model and length if you want —
+              then generate. Threads stay in your browser until you sign in.
             </p>
-            <h1 className="mt-3 max-w-lg text-[2.4rem] font-semibold leading-[1.08] tracking-tight text-white md:text-[2.85rem]">
-              video content as motion graphics.
-            </h1>
-            <p className="mt-4 max-w-md text-[14px] leading-relaxed text-neutral-500">
-              Describe a topic. We plan beats, narrate, animate with Manim or
-              Remotion, and sync audio to the cut.
+
+            <div className="lp-composer">
+              <textarea
+                id="landing-input"
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    submit(value);
+                  }
+                }}
+                placeholder="What should we teach?"
+                rows={4}
+              />
+              <div className="lp-composer-bar">
+                {prefsReady ? (
+                  <ModelSelector
+                    model={model}
+                    onModelChange={(m) => {
+                      setModel(m);
+                      setPreferredModel(m);
+                    }}
+                    duration={duration}
+                    onDurationChange={(d) => {
+                      setDuration(d);
+                      setPreferredDuration(d);
+                    }}
+                  />
+                ) : (
+                  <div className="h-8 w-40 animate-pulse rounded bg-[var(--lp-line-soft)]" />
+                )}
+                <button
+                  type="button"
+                  className="lp-btn primary"
+                  disabled={!value.trim() || busy}
+                  onClick={() => submit(value)}
+                  style={{ opacity: !value.trim() || busy ? 0.4 : 1 }}
+                >
+                  Generate
+                  <ArrowUpRight className="size-3.5" strokeWidth={1.75} />
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section id="starters">
+            <h2>Try a starter</h2>
+            <p>One click. Same pipeline as a blank prompt.</p>
+            <div className="lp-starters">
+              {DEMO_PROMPTS.map((item) => (
+                <button
+                  key={item.label}
+                  type="button"
+                  className="lp-starter"
+                  disabled={busy}
+                  onClick={() => submit(item.prompt)}
+                >
+                  <div className="n">{item.n}</div>
+                  <div className="t">{item.label}</div>
+                  <div className="b">{item.prompt}</div>
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section id="why">
+            <h2>Why it works</h2>
+            <p>
+              Quality comes from planning first — not patching sync after the
+              fact.
             </p>
-            <div className="mt-6 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => document.getElementById("landing-input")?.focus()}
-                className="inline-flex h-9 items-center bg-white px-4 text-[13px] font-semibold text-black hover:bg-neutral-200"
+            <div className="lp-features">
+              {FEATURES.map((f) => (
+                <div key={f.n} className="lp-feature">
+                  <div className="n">{f.n}</div>
+                  <div className="t">{f.title}</div>
+                  <div className="b">{f.body}</div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section id="api">
+            <h2>Ship with the API</h2>
+            <p>
+              The demo is for exploring. Production apps call{" "}
+              <code
+                style={{
+                  fontSize: "0.9em",
+                  background: "var(--lp-chip)",
+                  border: "1px solid var(--lp-line-soft)",
+                  borderRadius: 5,
+                  padding: "1px 6px",
+                }}
               >
-                Get started
-              </button>
-              <Link
-                href="/docs"
-                className="inline-flex h-9 items-center border border-white/15 px-4 text-[13px] font-medium text-neutral-200 hover:bg-white/[0.03]"
-              >
-                Docs
+                POST /video/request
+              </code>{" "}
+              with an API key, then poll status until the MP4 URL lands.
+            </p>
+            <ul>
+              <li>Create a key in Settings</li>
+              <li>Follow the Quickstart in Docs</li>
+              <li>Optional: point storage at your own bucket</li>
+            </ul>
+            <div className="lp-cta-row" style={{ justifyContent: "flex-start" }}>
+              <Link href="/docs/quickstart" className="lp-btn primary">
+                Open Quickstart
+              </Link>
+              <Link href="/docs/api" className="lp-btn">
+                API reference
               </Link>
             </div>
-          </div>
+          </section>
+        </article>
 
-          <div className="mm-grain relative min-h-[180px] overflow-hidden border border-white/10 bg-neutral-950 p-6">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.08),transparent_55%)]" />
-            <p className="relative text-[11px] font-medium tracking-[0.14em] text-neutral-500">
-              MANIMOTION
-            </p>
-            <p className="relative mt-6 text-[22px] font-semibold tracking-tight text-white">
-              prompt → beat sheet → video
-            </p>
-            <p className="relative mt-2 text-[12px] text-neutral-500">
-              TTS first. Render second. Sync by design.
-            </p>
+        <footer className="lp-foot">
+          <div>
+            <Link href="/docs">Docs</Link>
+            {" · "}
+            <Link href="/settings">Settings</Link>
+            {" · "}
+            <Link href="/sign-in">Sign in</Link>
           </div>
-        </section>
-
-        <section className="border border-white/10 bg-neutral-950">
-          <textarea
-            id="landing-input"
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                submit(value);
-              }
-            }}
-            placeholder="What should we teach?"
-            rows={4}
-            className="lime-focus w-full resize-none border-0 bg-transparent px-5 pt-5 pb-3 text-[15px] text-neutral-100 placeholder:text-neutral-600 focus:outline-none"
-          />
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 px-3 py-2.5">
-            {prefsReady ? (
-              <ModelSelector
-                model={model}
-                onModelChange={(m) => {
-                  setModel(m);
-                  setPreferredModel(m);
-                }}
-                duration={duration}
-                onDurationChange={(d) => {
-                  setDuration(d);
-                  setPreferredDuration(d);
-                }}
-              />
-            ) : (
-              <div className="h-8 w-40 animate-pulse bg-neutral-900" />
-            )}
-            <button
-              type="button"
-              onClick={() => submit(value)}
-              disabled={!value.trim() || busy}
-              className="mm-pixel-btn inline-flex h-9 items-center gap-1.5 px-4 disabled:opacity-40"
-            >
-              Generate
-              <ArrowUpRight className="size-3.5" />
-            </button>
+          <div>
+            <span>manimotion</span>
           </div>
-        </section>
-
-        <section>
-          <p className="mb-3 text-[12px] font-medium text-neutral-500">Try a starter</p>
-          <div className="grid border border-white/10 sm:grid-cols-2">
-            {DEMO_PROMPTS.map((item, i) => (
-              <button
-                key={item.label}
-                type="button"
-                disabled={busy}
-                onClick={() => submit(item.prompt)}
-                className={`mm-feature-cell group mm-grain bg-black p-5 text-left transition-colors hover:bg-neutral-950 ${
-                  i % 2 === 1 ? "sm:border-r-0" : ""
-                } ${i >= 2 ? "border-b-0" : ""}`}
-              >
-                <p className="text-[11px] text-neutral-600">{item.n}</p>
-                <p className="mt-2 text-[14px] font-semibold tracking-tight text-white group-hover:underline">
-                  {item.label}
-                </p>
-                <p className="mt-2 line-clamp-2 text-[12px] leading-relaxed text-neutral-500">
-                  {item.prompt}
-                </p>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <section>
-          <p className="mb-3 text-[12px] font-medium text-neutral-500">Why it works</p>
-          <div className="grid border border-white/10 md:grid-cols-3">
-            {FEATURES.map((f, i) => (
-              <div
-                key={f.n}
-                className={`mm-feature-cell mm-grain bg-black p-5 ${
-                  i === FEATURES.length - 1 ? "md:border-r-0" : ""
-                } border-b-0`}
-              >
-                <p className="text-[11px] text-neutral-600">{f.n}</p>
-                <p className="mt-3 text-[14px] font-semibold tracking-tight text-white">
-                  {f.title}
-                </p>
-                <p className="mt-2 text-[12px] leading-relaxed text-neutral-500">
-                  {f.body}
-                </p>
-              </div>
-            ))}
-          </div>
-        </section>
+        </footer>
       </div>
     </div>
   );

@@ -29,7 +29,7 @@ export function PixelHeatmap() {
           <div
             key={i}
             className={cn(
-              "aspect-square border border-white/[0.04]",
+              "aspect-square border border-[color-mix(in_oklab,var(--ink)_8%,transparent)]",
               intensity === 0 && "bg-zinc-900",
               intensity === 1 && "bg-zinc-700",
               intensity === 2 && "bg-zinc-500",

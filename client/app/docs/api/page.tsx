@@ -44,7 +44,7 @@ export default function DocsApiPage() {
         Every call needs <code>x-api-key</code>. Create keys in{" "}
         <Link
           href="/settings/api-keys"
-          className="text-white underline-offset-2 hover:underline"
+          className="text-foreground underline-offset-2 hover:underline"
         >
           Settings → API keys
         </Link>
@@ -128,7 +128,7 @@ headers = {
               Optional upload target — see{" "}
               <Link
                 href="/docs/storage"
-                className="text-white underline-offset-2 hover:underline"
+                className="text-foreground underline-offset-2 hover:underline"
               >
                 Storage
               </Link>
@@ -149,7 +149,7 @@ headers = {
         response={POLL_COMPLETED_RESPONSE}
         responseTitle="completed.json"
       />
-      <p className="mt-4 text-[12px] font-medium tracking-[0.08em] text-neutral-500">
+      <p className="mt-4 text-[12px] font-medium tracking-[0.08em] text-[var(--muted-text)]">
         FAILED SHAPE
       </p>
       <CodeTabs
@@ -218,14 +218,14 @@ headers = {
         Engines details →{" "}
         <Link
           href="/docs/engines"
-          className="text-white underline-offset-2 hover:underline"
+          className="text-foreground underline-offset-2 hover:underline"
         >
           Engines
         </Link>
         . BYO bucket →{" "}
         <Link
           href="/docs/storage"
-          className="text-white underline-offset-2 hover:underline"
+          className="text-foreground underline-offset-2 hover:underline"
         >
           Storage
         </Link>

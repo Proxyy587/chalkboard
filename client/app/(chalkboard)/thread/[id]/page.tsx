@@ -33,7 +33,7 @@ export default function ThreadPage() {
 
   if (!hydrated) {
     return (
-      <div className="flex h-full items-center justify-center text-[11px] text-zinc-600">
+      <div className="flex h-full items-center justify-center text-[11px] text-[var(--muted-2)]">
         Loading…
       </div>
     );
@@ -50,13 +50,13 @@ export default function ThreadPage() {
     <div className="flex h-full min-h-0 w-full flex-col lg:flex-row">
       <div
         className={cn(
-          "flex min-h-0 shrink-0 flex-col border-white/10",
+          "flex min-h-0 shrink-0 flex-col border-[var(--chip-line)]",
           "min-h-[38vh] flex-1 lg:h-full lg:w-[min(380px,40vw)] lg:flex-none lg:border-r"
         )}
       >
-        <div className="shrink-0 border-b border-white/10 px-4 py-3">
+        <div className="shrink-0 border-b border-[var(--chip-line)] px-4 py-3">
           <p className="mm-label">Prompt</p>
-          <p className="mt-1 truncate text-[13px] text-zinc-200">{thread.title}</p>
+          <p className="mt-1 truncate text-[13px] text-[var(--ink-soft)]">{thread.title}</p>
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
@@ -69,7 +69,7 @@ export default function ThreadPage() {
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               rows={8}
-              className="lime-focus min-h-[140px] flex-1 resize-none border border-white/12 bg-black px-3 py-3 text-[13px] leading-relaxed text-neutral-200 placeholder:text-neutral-600"
+              className="lime-focus min-h-[140px] flex-1 resize-none rounded-[10px] border border-[var(--chip-line)] bg-[var(--surface)] px-3 py-3 text-[13px] leading-relaxed text-foreground placeholder:text-[var(--muted-2)]"
               placeholder="Describe the lecture…"
             />
             {dirty && (
@@ -94,7 +94,7 @@ export default function ThreadPage() {
               }}
               onDurationChange={(d) => setThreadDuration(id, d)}
             />
-            <p className="text-[11px] leading-relaxed text-zinc-600">
+            <p className="text-[11px] leading-relaxed text-[var(--muted-2)]">
               {getModelLabel(thread.model)} · Generate runs script → Manim →
               narration → video.
             </p>

@@ -59,10 +59,10 @@ export function ChalkCanvas({
 
   return (
     <section className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
-      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
+      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3">
         <div>
           <p className="mm-label">Output</p>
-          <p className="mt-0.5 text-[12px] text-zinc-400">
+          <p className="mt-0.5 text-[12px] text-[var(--muted-text)]">
             {activeVideo?.status === "completed"
               ? "Video ready"
               : rendering
@@ -82,7 +82,7 @@ export function ChalkCanvas({
 
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         {videos.length > 0 && (
-          <aside className="flex w-full shrink-0 gap-1 overflow-x-auto border-b border-white/10 p-2 md:w-[140px] md:flex-col md:overflow-x-hidden md:overflow-y-auto md:border-b-0 md:border-r">
+          <aside className="flex w-full shrink-0 gap-1 overflow-x-auto border-b border-[var(--chip-line)] p-2 md:w-[140px] md:flex-col md:overflow-x-hidden md:overflow-y-auto md:border-b-0 md:border-r">
             {videos.map((v) => {
               const active = activeVideo?.id === v.id;
               return (
@@ -93,12 +93,12 @@ export function ChalkCanvas({
                   className={cn(
                     "flex shrink-0 items-center gap-2 px-2 py-2 text-left text-[10px] transition-colors md:w-full",
                     active
-                      ? "rounded-none bg-neutral-900 text-white"
-                      : "rounded-none text-neutral-500 hover:bg-white/[0.03] hover:text-neutral-300"
+                      ? "rounded-[9px] bg-[var(--chip)] text-foreground"
+                      : "rounded-[9px] text-[var(--muted-text)] hover:bg-[var(--chip)] hover:text-[var(--ink-soft)]"
                   )}
                 >
                   <span className="line-clamp-1 flex-1">{v.title}</span>
-                  <span className="shrink-0 text-[9px] text-zinc-600">
+                  <span className="shrink-0 text-[9px] text-[var(--muted-2)]">
                     {statusLabel(v)}
                   </span>
                 </button>
@@ -109,7 +109,7 @@ export function ChalkCanvas({
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col p-3">
           <div className="mm-panel mm-scan relative flex min-h-0 flex-1 flex-col overflow-hidden">
-            <div className="relative z-[1] min-h-0 flex-1 bg-black">
+            <div className="relative z-[1] min-h-0 flex-1 bg-[#0a0a09]">
               {activeVideo?.status === "completed" &&
               activeVideo.videoUrl &&
               activeVideo.videoUrl.length > 0 ? (
@@ -146,7 +146,7 @@ export function ChalkCanvas({
                       />
                     ))}
                   </div>
-                  <p className="max-w-[260px] text-center text-[12px] leading-relaxed text-zinc-500">
+                  <p className="max-w-[260px] text-center text-[12px] leading-relaxed text-[var(--muted-text)]">
                     {rendering
                       ? "Manim + narration + upload in progress"
                       : "Hit Generate to render this lecture"}

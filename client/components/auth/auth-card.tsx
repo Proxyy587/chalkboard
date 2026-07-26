@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 
 import { SocialAuthButtons } from "@/components/auth/social-auth-buttons";
+import { ThemeToggle } from "@/components/theme/theme-provider";
 import { signIn, signUp } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,30 +61,20 @@ export function AuthCard({ initialMode = "sign-in" }: { initialMode?: Mode }) {
   }
 
   return (
-    <div className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-black p-6">
-      <div
-        className="pointer-events-none absolute inset-0 opacity-[0.18]"
-        style={{
-          backgroundImage:
-            "linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px)",
-          backgroundSize: "40px 40px",
-        }}
-      />
-      <div className="pointer-events-none absolute -left-20 top-10 h-[420px] w-[520px] opacity-[0.07]">
-        <svg viewBox="0 0 800 400" className="size-full text-white" fill="none" stroke="currentColor" strokeWidth="0.6">
-          <path d="M40 80h120v60H40zM180 40h90v100h-90zM290 100h160v80H290zM480 60h140v120H480zM640 120h100v90H640zM80 200h200v100H80zM320 220h180v90H320zM540 240h200v80H540z" />
-          <path d="M0 180h800M0 280h800M200 0v400M500 0v400" opacity="0.4" />
-        </svg>
+    <div className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-background p-6">
+      <div className="pointer-events-none absolute inset-0 mm-grain opacity-60" />
+      <div className="absolute right-4 top-4 z-[2]">
+        <ThemeToggle />
       </div>
 
       <div className="relative z-[1] mb-8">
-        <Link href="/" className="mm-brand text-sm tracking-[0.08em]">
-          manimotion.
+        <Link href="/" className="mm-brand text-[15px]">
+          manimotion
         </Link>
       </div>
 
-      <div className="relative z-[1] w-full max-w-[420px] border border-white/10 bg-black">
-        <div className="flex border-b border-white/10">
+      <div className="relative z-[1] w-full max-w-[420px] overflow-hidden rounded-[12px] border border-[var(--chip-line)] bg-[var(--surface)] shadow-[0_12px_40px_color-mix(in_oklab,var(--ink)_6%,transparent)]">
+        <div className="flex border-b border-border">
           {(
             [
               { id: "sign-in" as const, label: "Sign In", href: "/sign-in" },
@@ -101,8 +92,8 @@ export function AuthCard({ initialMode = "sign-in" }: { initialMode?: Mode }) {
               className={cn(
                 "flex-1 px-4 py-3 text-[13px] font-medium transition-colors",
                 mode === tab.id
-                  ? "border-b-2 border-white text-white"
-                  : "text-neutral-500 hover:text-neutral-300"
+                  ? "border-b-2 border-foreground text-foreground"
+                  : "text-[var(--muted-text)] hover:text-[var(--ink-soft)]"
               )}
             >
               {tab.label}
@@ -112,10 +103,10 @@ export function AuthCard({ initialMode = "sign-in" }: { initialMode?: Mode }) {
 
         <div className="space-y-6 p-6 md:p-8">
           <div>
-            <h1 className="text-xl font-semibold tracking-tight text-white">
+            <h1 className="text-xl font-bold tracking-[-0.02em] text-foreground">
               {mode === "sign-in" ? "Sign In" : "Create account"}
             </h1>
-            <p className="mt-1.5 text-[13px] text-neutral-500">
+            <p className="mt-1.5 text-[13px] text-[var(--muted-text)]">
               {mode === "sign-in"
                 ? "Enter your email below to login to your account."
                 : "Start with Google, GitHub, or email."}
@@ -125,9 +116,7 @@ export function AuthCard({ initialMode = "sign-in" }: { initialMode?: Mode }) {
           <form onSubmit={onSubmit} className="space-y-4">
             {mode === "sign-up" && (
               <div>
-                <Label htmlFor="name" className="text-neutral-200">
-                  Name
-                </Label>
+                <Label htmlFor="name">Name</Label>
                 <Input
                   id="name"
                   className="mt-1.5"
@@ -139,9 +128,7 @@ export function AuthCard({ initialMode = "sign-in" }: { initialMode?: Mode }) {
               </div>
             )}
             <div>
-              <Label htmlFor="email" className="text-neutral-200">
-                Email
-              </Label>
+              <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
                 type="email"
@@ -155,11 +142,9 @@ export function AuthCard({ initialMode = "sign-in" }: { initialMode?: Mode }) {
             </div>
             <div>
               <div className="flex items-center justify-between">
-                <Label htmlFor="password" className="text-neutral-200">
-                  Password
-                </Label>
+                <Label htmlFor="password">Password</Label>
                 {mode === "sign-in" && (
-                  <span className="text-[12px] text-neutral-500 underline-offset-2">
+                  <span className="text-[12px] text-[var(--muted-text)]">
                     Forgot your password?
                   </span>
                 )}
@@ -170,7 +155,9 @@ export function AuthCard({ initialMode = "sign-in" }: { initialMode?: Mode }) {
                   type={showPw ? "text" : "password"}
                   required
                   minLength={8}
-                  autoComplete={mode === "sign-in" ? "current-password" : "new-password"}
+                  autoComplete={
+                    mode === "sign-in" ? "current-password" : "new-password"
+                  }
                   placeholder="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -178,30 +165,34 @@ export function AuthCard({ initialMode = "sign-in" }: { initialMode?: Mode }) {
                 />
                 <button
                   type="button"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-neutral-500 hover:text-neutral-300"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-[var(--muted-text)] hover:text-foreground"
                   onClick={() => setShowPw((v) => !v)}
                   aria-label={showPw ? "Hide password" : "Show password"}
                 >
-                  {showPw ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                  {showPw ? (
+                    <EyeOff className="size-4" />
+                  ) : (
+                    <Eye className="size-4" />
+                  )}
                 </button>
               </div>
             </div>
 
             {mode === "sign-in" && (
-              <label className="flex items-center gap-2 text-[13px] text-neutral-400">
+              <label className="flex items-center gap-2 text-[13px] text-[var(--ink-soft)]">
                 <input
                   type="checkbox"
                   checked={remember}
                   onChange={(e) => setRemember(e.target.checked)}
-                  className="size-3.5 rounded-none border border-white/20 bg-black accent-white"
+                  className="size-3.5 rounded-[4px] border border-[var(--chip-line)] accent-[var(--ink)]"
                 />
                 Remember me
               </label>
             )}
 
-            {error && <p className="text-[13px] text-red-400">{error}</p>}
+            {error && <p className="text-[13px] text-red-500">{error}</p>}
 
-            <Button type="submit" className="h-10 w-full rounded-none" disabled={loading}>
+            <Button type="submit" className="h-10 w-full" disabled={loading}>
               {loading
                 ? mode === "sign-in"
                   ? "Signing in…"
@@ -214,14 +205,14 @@ export function AuthCard({ initialMode = "sign-in" }: { initialMode?: Mode }) {
 
           <SocialAuthButtons callbackURL="/settings" />
 
-          <p className="text-center text-[11px] leading-relaxed text-neutral-600">
+          <p className="text-center text-[11px] leading-relaxed text-[var(--muted-2)]">
             By continuing, you agree to the Terms of Service and Privacy Policy.
           </p>
         </div>
       </div>
 
-      <p className="relative z-[1] mt-6 text-[12px] text-neutral-600">
-        <Link href="/" className="hover:text-neutral-300">
+      <p className="relative z-[1] mt-6 text-[12px] text-[var(--muted-text)]">
+        <Link href="/" className="hover:text-foreground">
           ← Back to demo
         </Link>
       </p>

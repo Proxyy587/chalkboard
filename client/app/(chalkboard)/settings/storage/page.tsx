@@ -187,10 +187,10 @@ export default function StorageSettingsPage() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="mm-label">Buckets</p>
-          <h2 className="mt-1 text-[1.25rem] font-semibold tracking-tight text-white">
+          <h2 className="mt-1 text-[1.25rem] font-semibold tracking-tight text-foreground">
             Storage
           </h2>
-          <p className="mt-2 max-w-lg text-[13px] text-neutral-500">
+          <p className="mt-2 max-w-lg text-[13px] text-[var(--muted-text)]">
             Videos upload to your bucket when configured. Credentials encrypted
             at rest.
           </p>
@@ -365,18 +365,18 @@ export default function StorageSettingsPage() {
         </DialogContent>
       </Dialog>
 
-      <section className="divide-y divide-white/10 border border-white/10">
+      <section className="divide-y divide-border overflow-hidden rounded-[10px] border border-[var(--chip-line)]">
         <div className="flex items-center justify-between px-4 py-2.5">
-          <p className="text-[11px] font-medium tracking-[0.08em] text-neutral-600">
+          <p className="text-[11px] font-medium tracking-[0.08em] text-[var(--muted-2)]">
             INTEGRATIONS
           </p>
-          <p className="text-[11px] tabular-nums text-neutral-600">
+          <p className="text-[11px] tabular-nums text-[var(--muted-2)]">
             {integrations.length}
           </p>
         </div>
-        {loading && <p className="p-6 text-[12px] text-neutral-600">Loading…</p>}
+        {loading && <p className="p-6 text-[12px] text-[var(--muted-2)]">Loading…</p>}
         {!loading && integrations.length === 0 && (
-          <p className="p-6 text-[12px] text-neutral-600">
+          <p className="p-6 text-[12px] text-[var(--muted-2)]">
             No storage yet — add a bucket to upload finished lectures.
           </p>
         )}
@@ -387,12 +387,12 @@ export default function StorageSettingsPage() {
           >
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[13px] text-neutral-200">{row.name}</span>
+                <span className="text-[13px] text-[var(--ink-soft)]">{row.name}</span>
                 <Badge variant="outline">{row.provider}</Badge>
                 {row.isVerified && <Badge variant="default">verified</Badge>}
               </div>
-              <p className="mt-1 text-[11px] text-neutral-600">
-                <code className="text-neutral-500">{row.id}</code>
+              <p className="mt-1 text-[11px] text-[var(--muted-2)]">
+                <code className="text-[var(--muted-text)]">{row.id}</code>
                 {row.bucketName ? ` · ${row.bucketName}` : ""}
               </p>
             </div>

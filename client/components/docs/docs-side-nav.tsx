@@ -34,7 +34,7 @@ export function DocsSideNav() {
     <nav className="space-y-6">
       {DOCS_NAV.map((section) => (
         <div key={section.group}>
-          <p className="mb-2 px-2 text-[11px] font-medium text-neutral-600">
+          <p className="mb-2 px-2 text-[11px] font-medium text-[var(--muted-2)]">
             {section.group}
           </p>
           <ul className="space-y-0.5">
@@ -49,10 +49,10 @@ export function DocsSideNav() {
                   <Link
                     href={item.href}
                     className={cn(
-                      "block px-2.5 py-1.5 text-[13px] transition-colors",
+                      "block rounded-[8px] px-2.5 py-1.5 text-[13px] transition-colors",
                       active
-                        ? "bg-neutral-900 font-medium text-white"
-                        : "text-neutral-500 hover:bg-white/[0.03] hover:text-neutral-200"
+                        ? "bg-[var(--chip)] font-medium text-foreground"
+                        : "text-[var(--muted-text)] hover:bg-[var(--chip)] hover:text-foreground"
                     )}
                   >
                     {item.label}

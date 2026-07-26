@@ -166,7 +166,7 @@ export default function DocsEnginesPage() {
         Full request fields →{" "}
         <Link
           href="/docs/api"
-          className="text-white underline-offset-2 hover:underline"
+          className="text-foreground underline-offset-2 hover:underline"
         >
           API reference
         </Link>

@@ -11,21 +11,21 @@ export function SessionGate({ children }: { children: React.ReactNode }) {
 
   if (isPending) {
     return (
-      <div className="border border-white/10 bg-black/40 p-6">
+      <div className="rounded-[10px] border border-[var(--chip-line)] bg-[var(--surface)] p-6">
         <p className="mm-label">Session</p>
-        <p className="mt-2 text-[12px] text-zinc-500">Checking…</p>
+        <p className="mt-2 text-[12px] text-[var(--muted-text)]">Checking…</p>
       </div>
     );
   }
 
   if (!session?.user) {
     return (
-      <div className="border border-white/10 bg-black/50 p-6 md:p-8">
+      <div className="border border-[var(--chip-line)] bg-[var(--surface)] p-6 md:p-8 rounded-[10px]">
         <p className="mm-label">Locked</p>
-        <h2 className="mt-2 text-[16px] font-semibold tracking-tight text-zinc-100">
+        <h2 className="mt-2 text-[16px] font-semibold tracking-tight text-foreground">
           Sign in to open the console
         </h2>
-        <p className="mt-2 max-w-sm text-[13px] leading-relaxed text-zinc-500">
+        <p className="mt-2 max-w-sm text-[13px] leading-relaxed text-[var(--muted-text)]">
           API keys and storage are tied to your account. The home demo still
           works without signing in.
         </p>

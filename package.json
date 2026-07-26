@@ -3,10 +3,10 @@
   "private": true,
   "description": "Monorepo root. The Next.js web app is in client/. Deploy with Vercel Root Directory = client. Python worker runs on VPS separately.",
   "scripts": {
-    "dev": "bun --cwd client run dev",
-    "build": "bun --cwd client run build",
-    "start": "bun --cwd client run start",
-    "db:push": "bun --cwd client run db:push",
-    "db:generate": "bun --cwd client run db:generate"
+    "dev": "bun run --cwd client dev",
+    "build": "bun run --cwd client build",
+    "start": "bun run --cwd client start",
+    "db:push": "bun run --cwd client db:push",
+    "db:generate": "bun run --cwd client db:generate"
   }
 }

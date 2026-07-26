@@ -43,7 +43,7 @@ export default function DocsQuickstartPage() {
           Create a key in{" "}
           <Link
             href="/settings/api-keys"
-            className="text-white underline-offset-2 hover:underline"
+            className="text-foreground underline-offset-2 hover:underline"
           >
             Settings → API keys
           </Link>{" "}
@@ -163,14 +163,14 @@ https://cdn.example.com/videos/a1b2c3d4.mp4`}
         Next: full field docs in the{" "}
         <Link
           href="/docs/api"
-          className="text-white underline-offset-2 hover:underline"
+          className="text-foreground underline-offset-2 hover:underline"
         >
           API reference
         </Link>
         , or send renders to your bucket in{" "}
         <Link
           href="/docs/storage"
-          className="text-white underline-offset-2 hover:underline"
+          className="text-foreground underline-offset-2 hover:underline"
         >
           Storage
         </Link>

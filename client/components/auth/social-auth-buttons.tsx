@@ -6,7 +6,11 @@ import { signIn } from "@/lib/auth-client";
 
 type Provider = "google" | "github";
 
-export function SocialAuthButtons({ callbackURL = "/settings" }: { callbackURL?: string }) {
+export function SocialAuthButtons({
+  callbackURL = "/settings",
+}: {
+  callbackURL?: string;
+}) {
   const [loading, setLoading] = useState<Provider | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,14 +30,14 @@ export function SocialAuthButtons({ callbackURL = "/settings" }: { callbackURL?:
   return (
     <div className="space-y-3">
       <div className="relative flex items-center gap-3">
-        <div className="h-px flex-1 bg-white/10" />
-        <span className="text-[11px] text-neutral-600">or continue with</span>
-        <div className="h-px flex-1 bg-white/10" />
+        <div className="h-px flex-1 bg-border" />
+        <span className="text-[11px] text-[var(--muted-2)]">or continue with</span>
+        <div className="h-px flex-1 bg-border" />
       </div>
       <div className="grid gap-2">
         <button
           type="button"
-          className="mm-ghost-btn flex h-10 w-full items-center justify-center rounded-none px-3 text-[13px]"
+          className="mm-ghost-btn flex h-10 w-full items-center justify-center px-3 text-[13px]"
           disabled={loading !== null}
           onClick={() => social("google")}
         >
@@ -41,14 +45,14 @@ export function SocialAuthButtons({ callbackURL = "/settings" }: { callbackURL?:
         </button>
         <button
           type="button"
-          className="mm-ghost-btn flex h-10 w-full items-center justify-center rounded-none px-3 text-[13px]"
+          className="mm-ghost-btn flex h-10 w-full items-center justify-center px-3 text-[13px]"
           disabled={loading !== null}
           onClick={() => social("github")}
         >
           {loading === "github" ? "Redirecting…" : "Sign in with GitHub"}
         </button>
       </div>
-      {error && <p className="text-[12px] text-red-400">{error}</p>}
+      {error && <p className="text-[12px] text-red-500">{error}</p>}
     </div>
   );
 }

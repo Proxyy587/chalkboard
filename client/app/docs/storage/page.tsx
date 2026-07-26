@@ -66,8 +66,8 @@ export default function DocsStoragePage() {
       <div className="mt-4">
         <DocCallout title="Rule" tone="accent">
           <p>
-            Use <strong className="text-neutral-200">either</strong>{" "}
-            <code>inline</code> <strong className="text-neutral-200">or</strong>{" "}
+            Use <strong className="text-[var(--ink-soft)]">either</strong>{" "}
+            <code>inline</code> <strong className="text-[var(--ink-soft)]">or</strong>{" "}
             <code>integration_id</code> — never both in one request.
           </p>
         </DocCallout>
@@ -78,7 +78,7 @@ export default function DocsStoragePage() {
         1. Sign in →{" "}
         <Link
           href="/settings/storage"
-          className="text-white underline-offset-2 hover:underline"
+          className="text-foreground underline-offset-2 hover:underline"
         >
           Settings → Storage
         </Link>
@@ -113,7 +113,7 @@ export default function DocsStoragePage() {
       />
 
       <DocH2 id="fields">Field reference</DocH2>
-      <p className="mt-3 text-[12px] font-medium tracking-[0.08em] text-neutral-500">
+      <p className="mt-3 text-[12px] font-medium tracking-[0.08em] text-[var(--muted-text)]">
         INLINE R2
       </p>
       <DocTable
@@ -127,7 +127,7 @@ export default function DocsStoragePage() {
           [<code key="u">public_url</code>, "optional CDN base"],
         ]}
       />
-      <p className="mt-6 text-[12px] font-medium tracking-[0.08em] text-neutral-500">
+      <p className="mt-6 text-[12px] font-medium tracking-[0.08em] text-[var(--muted-text)]">
         INLINE S3 / MINIO / BACKBLAZE
       </p>
       <DocTable
@@ -228,7 +228,7 @@ export default function DocsStoragePage() {
         Back to{" "}
         <Link
           href="/docs/api"
-          className="text-white underline-offset-2 hover:underline"
+          className="text-foreground underline-offset-2 hover:underline"
         >
           API reference
         </Link>

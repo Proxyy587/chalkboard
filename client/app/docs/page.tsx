@@ -36,7 +36,7 @@ export default function DocsIntroPage() {
         with Manim or Remotion, sync audio to the cut, and return an MP4 URL.
       </DocLead>
 
-      <div className="mt-8 grid gap-px border border-white/10 bg-white/10 sm:grid-cols-2">
+      <div className="mt-8 grid overflow-hidden rounded-[10px] border border-[var(--chip-line)] sm:grid-cols-2">
         {[
           {
             href: "/docs/quickstart",
@@ -62,10 +62,10 @@ export default function DocsIntroPage() {
           <Link
             key={card.href}
             href={card.href}
-            className="mm-grain group block bg-black p-5 transition-colors hover:bg-neutral-950"
+            className="group block border-b border-r border-[var(--chip-line)] bg-[var(--surface)] p-5 transition-colors hover:bg-[var(--chip)] last:border-b-0 sm:odd:border-r sm:[&:nth-child(2)]:border-r-0 sm:[&:nth-child(3)]:border-b-0 sm:[&:nth-child(4)]:border-b-0 sm:[&:nth-child(4)]:border-r-0"
           >
-            <p className="text-[13px] font-medium text-white">{card.title}</p>
-            <p className="mt-1.5 text-[12px] leading-relaxed text-neutral-500">
+            <p className="text-[13px] font-medium text-foreground">{card.title}</p>
+            <p className="mt-1.5 text-[12px] leading-relaxed text-[var(--muted-text)]">
               {card.body}
             </p>
           </Link>
@@ -100,7 +100,7 @@ export default function DocsIntroPage() {
       <div className="mt-4">
         <DocCallout title="Important" tone="accent">
           <p>
-            The first response is <strong className="text-neutral-200">not</strong>{" "}
+            The first response is <strong className="text-[var(--ink-soft)]">not</strong>{" "}
             the video. It is a <code>job_id</code>. Always poll{" "}
             <code>/video/status/{"{job_id}"}</code>.
           </p>
@@ -140,21 +140,21 @@ export default function DocsIntroPage() {
         New to the API? Do the{" "}
         <Link
           href="/docs/quickstart"
-          className="text-white underline-offset-2 hover:underline"
+          className="text-foreground underline-offset-2 hover:underline"
         >
           Quickstart
         </Link>
         . Building for real? Read the{" "}
         <Link
           href="/docs/api"
-          className="text-white underline-offset-2 hover:underline"
+          className="text-foreground underline-offset-2 hover:underline"
         >
           API reference
         </Link>
         . Hacking on the repo? See{" "}
         <Link
           href="/docs/contributing"
-          className="text-white underline-offset-2 hover:underline"
+          className="text-foreground underline-offset-2 hover:underline"
         >
           Contributing
         </Link>
