@@ -46,10 +46,23 @@ Same `DATABASE_URL` goes on **Vercel** and the **VPS**.
 
 ## 2. Vercel (Next.js)
 
+### Critical: Root Directory
+
+Vercel must build **`client/`**, not the repo root (root `package.json` has no `next` → “No Next.js version detected”).
+
+1. Project → **Settings** → **General** → **Root Directory**
+2. **Edit** → set to `client` → **Save**
+3. **Deployments** → latest → **⋯** → **Redeploy**
+
+Root `vercel.json` also sets `"rootDirectory": "client"`. If the dashboard still shows blank/`.`, force `client` manually — that setting is what fixes the error.
+
+### Import / settings
+
 1. Import the GitHub repo.
-2. **Root Directory** = `client`.
-3. Framework = Next.js. Install/build defaults are fine (`bun` / `prisma generate` in postinstall).
-4. **Environment variables (Production)**:
+2. Framework Preset = **Next.js**
+3. Root Directory = **`client`**
+4. Install = `bun install` · Build = `bun run build` · Output = leave default
+5. **Environment variables (Production)**:
 
 | Variable | Required | Notes |
 |----------|----------|--------|
@@ -63,12 +76,12 @@ Same `DATABASE_URL` goes on **Vercel** and the **VPS**.
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | if Google login | |
 | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | if GitHub login | |
 
-5. OAuth redirect URIs:
-   - `https://your-domain.com/api/auth/callback/google`
-   - `https://your-domain.com/api/auth/callback/github`
-6. Deploy. Confirm `https://your-domain.com` loads and sign-in works.
+6. OAuth redirects: `https://your-domain.com/api/auth/callback/google` (and GitHub).
+7. Deploy. Confirm the site loads.
 
-**Do not** put platform R2 secrets on Vercel. Those stay on the VPS. Users paste their own bucket creds in Settings; Vercel only stores ciphertext.
+Still seeing **“No Next.js version detected”**? Root Directory is not `client` — fix and redeploy.
+
+**Do not** put platform R2 secrets on Vercel. Those stay on the VPS.
 
 ---
 
