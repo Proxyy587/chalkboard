@@ -71,12 +71,12 @@ Root `vercel.json` also sets `"rootDirectory": "client"`. If the dashboard still
 | `BETTER_AUTH_URL` | yes | `https://your-domain.com` |
 | `NEXT_PUBLIC_APP_URL` | yes | same as auth URL |
 | `SECRET_ENCRYPTION_KEY` | yes | **identical** to VPS |
-| `NEXT_PUBLIC_CHALKBOARD_API_URL` | yes | `https://api.yourdomain.com` (VPS) |
+| `NEXT_PUBLIC_CHALKBOARD_API_URL` | yes | `https://api.manimotion.dev` |
 | `CLARITY_API_KEY` | yes | **identical** to VPS (demo proxy only; never expose to browser) |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | if Google login | |
+| `OWNER_EMAILS` | recommended | comma-separated → unlimited website + OWNER API keys |
 | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | if GitHub login | |
 
-6. OAuth redirects: `https://your-domain.com/api/auth/callback/google` (and GitHub).
+6. OAuth redirect: `https://your-domain.com/api/auth/callback/github`.
 7. Deploy. Confirm the site loads.
 
 Still seeing **“No Next.js version detected”**? Root Directory is not `client` — fix and redeploy.
@@ -136,12 +136,12 @@ curl http://127.0.0.1:8000/health
 ```
 
 ### HTTPS (Nginx)
-Point `api.yourdomain.com` → `127.0.0.1:8000` with long timeouts (renders take minutes):
+Point `api.manimotion.dev` → `127.0.0.1:8000` with long timeouts (renders take minutes):
 
 ```nginx
 server {
     listen 80;
-    server_name api.yourdomain.com;
+    server_name api.manimotion.dev;
     client_max_body_size 20m;
     proxy_read_timeout 600s;
     proxy_send_timeout 600s;

@@ -142,7 +142,11 @@ async function readApiError(res: Response): Promise<string> {
 export async function createLectureJob(
   messages: ApiMessage[],
   model: string,
-  opts?: { engine?: "auto" | "manim" | "remotion"; duration?: number }
+  opts?: {
+    engine?: "auto" | "manim" | "remotion";
+    duration?: number;
+    storage?: { integration_id?: string; inline?: Record<string, unknown> };
+  }
 ): Promise<JobCreateResponse> {
   const prompt =
     [...messages].reverse().find((m) => m.role === "user")?.content?.trim() ||
@@ -155,6 +159,7 @@ export async function createLectureJob(
     engine: opts?.engine ?? "auto",
   };
   if (opts?.duration != null) body.duration = opts.duration;
+  if (opts?.storage) body.storage = opts.storage;
 
   const headers = apiHeaders();
   // Open demo: Next proxy injects CLARITY_API_KEY when the browser has no key.

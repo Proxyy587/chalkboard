@@ -4,8 +4,6 @@ import { nextCookies } from "better-auth/next-js";
 
 import { db } from "@/lib/db";
 
-const googleClientId = process.env.GOOGLE_CLIENT_ID?.trim();
-const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
 const githubClientId = process.env.GITHUB_CLIENT_ID?.trim();
 const githubClientSecret = process.env.GITHUB_CLIENT_SECRET?.trim();
 
@@ -31,22 +29,11 @@ export const auth = betterAuth({
     },
   },
   socialProviders: {
-    ...(googleClientId && googleClientSecret
-      ? {
-          google: {
-            clientId: googleClientId,
-            clientSecret: googleClientSecret,
-            prompt: "select_account",
-            accessType: "offline",
-          },
-        }
-      : {}),
     ...(githubClientId && githubClientSecret
       ? {
           github: {
             clientId: githubClientId,
             clientSecret: githubClientSecret,
-            // Required so Better Auth can read the user's email
             scope: ["read:user", "user:email"],
           },
         }
@@ -55,7 +42,7 @@ export const auth = betterAuth({
   account: {
     accountLinking: {
       enabled: true,
-      trustedProviders: ["google", "github"],
+      trustedProviders: ["github"],
     },
   },
   session: {
@@ -77,8 +64,12 @@ export const auth = betterAuth({
   },
   trustedOrigins: [
     process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
+    process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
+    "http://localhost:3000",
     "http://127.0.0.1:3000",
-  ],
+    "https://manimotion.dev",
+    "https://www.manimotion.dev",
+  ].filter((v, i, a) => Boolean(v) && a.indexOf(v) === i),
   advanced: {
     useSecureCookies: process.env.NODE_ENV === "production",
   },

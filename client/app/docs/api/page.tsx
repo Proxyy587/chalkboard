@@ -35,8 +35,9 @@ export default function DocsApiPage() {
       <p className="mm-label">API</p>
       <DocH1>Reference</DocH1>
       <DocLead>
-        The full public API. Two endpoints. Examples in cURL, JavaScript, and
-        Python — flip the tabs. Response JSON sits under every request example.
+        Official API: <code>https://api.manimotion.dev</code>. Two endpoints.
+        Examples in cURL, JavaScript, and Python — flip the tabs. Response JSON
+        sits under every request example.
       </DocLead>
 
       <DocH2 id="auth">Auth header</DocH2>
@@ -63,7 +64,7 @@ export default function DocsApiPage() {
         examples={asTabs(
           {
             curl: `# set once in your shell / CI secrets
-export MANIMOTION_API=https://YOUR_API_HOST
+export MANIMOTION_API=https://api.manimotion.dev
 export MANIMOTION_KEY=chalk_live_sk_v1_...
 
 # then pass on every request
@@ -201,9 +202,22 @@ headers = {
           ["401", "Missing / invalid x-api-key"],
           ["400", "Bad body (empty prompt, bad duration, bad storage)"],
           ["404", "Unknown job_id"],
-          ["429", "Rate limited — slow down"],
+          [
+            "429",
+            "Quota: guests 1 video / IP; free plan 3 / day; paid & owner unlimited",
+          ],
         ]}
       />
+      <div className="mt-4">
+        <DocCallout title="Limits">
+          <p>
+            Free <code>chalk_*</code> keys and signed-in free accounts: 3 videos
+            per UTC day. Guests on the website: 1 video per IP (clearing cache
+            does not reset). Owner master key and{" "}
+            <code>OWNER</code>/<code>PRO</code>+ plans: unlimited.
+          </p>
+        </DocCallout>
+      </div>
       <div className="mt-4">
         <DocCallout title="200 + failed" tone="warn">
           <p>

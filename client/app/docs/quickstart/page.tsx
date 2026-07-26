@@ -62,7 +62,7 @@ export default function DocsQuickstartPage() {
         className="mt-4"
         title=".env"
         lang="bash"
-        code={`MANIMOTION_API=https://YOUR_API_HOST
+        code={`MANIMOTION_API=https://api.manimotion.dev
 MANIMOTION_KEY=chalk_live_sk_v1_...`}
       />
       <div className="mt-4">

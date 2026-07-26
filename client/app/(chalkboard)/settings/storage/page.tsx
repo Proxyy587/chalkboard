@@ -371,8 +371,9 @@ export default function StorageSettingsPage() {
           <p className="text-[11px] font-medium tracking-[0.08em] text-[var(--muted-2)]">
             INTEGRATIONS
           </p>
-          <p className="text-[11px] tabular-nums text-[var(--muted-2)]">
-            {integrations.length}
+          <p className="text-[11px] text-[var(--muted-2)]">
+            Copy an id → pass as{" "}
+            <code className="text-[var(--muted-text)]">storage.integration_id</code>
           </p>
         </div>
         {loading && <p className="p-6 text-[12px] text-[var(--muted-2)]">Loading…</p>}
@@ -392,12 +393,23 @@ export default function StorageSettingsPage() {
                 <Badge variant="outline">{row.provider}</Badge>
                 {row.isVerified && <Badge variant="default">verified</Badge>}
               </div>
-              <p className="mt-1 text-[11px] text-[var(--muted-2)]">
+              <p className="mt-1 truncate text-[11px] text-[var(--muted-2)]">
                 <code className="text-[var(--muted-text)]">{row.id}</code>
                 {row.bucketName ? ` · ${row.bucketName}` : ""}
               </p>
             </div>
             <div className="flex items-center gap-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  void navigator.clipboard.writeText(row.id);
+                  toast.success("Integration id copied");
+                }}
+              >
+                Copy id
+              </Button>
               <Button
                 type="button"
                 variant="ghost"

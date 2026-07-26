@@ -109,7 +109,7 @@ export function AuthCard({ initialMode = "sign-in" }: { initialMode?: Mode }) {
             <p className="mt-1.5 text-[13px] text-[var(--muted-text)]">
               {mode === "sign-in"
                 ? "Enter your email below to login to your account."
-                : "Start with Google, GitHub, or email."}
+                : "Start with GitHub or email. You can save a guest video after signing in."}
             </p>
           </div>
 

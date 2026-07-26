@@ -38,8 +38,15 @@ Use header: `x-api-key: chalk_live_sk_v1_...`
 
 ## Plans & credits (schema ready)
 
-`ApiKeyPlan`: FREE, STUDENT, PRO, CREATOR, ENTERPRISE  
-`credits` / `creditLimit` columns exist — **not enforced yet** on FREE.
+`ApiKeyPlan`: FREE, STUDENT, PRO, CREATOR, ENTERPRISE, OWNER  
+
+**Quotas (enforced):**
+- FREE / STUDENT chalk keys: **3 videos / UTC day**
+- PRO / CREATOR / ENTERPRISE / OWNER (+ master `CLARITY_API_KEY`): **unlimited**
+- Website guests (no login): **1 video / IP** (lifetime; clearing cache does not reset)
+- Website signed-in free: **3 / day**
+
+`credits` / `creditLimit` columns exist for future billing.
 
 ## Storage providers
 
@@ -60,7 +67,7 @@ Three ways (first match wins):
 ### Saved integration
 
 ```bash
-curl -X POST http://localhost:8000/video/request \
+curl -X POST https://api.manimotion.dev/video/request \
   -H "x-api-key: chalk_live_sk_v1_..." \
   -H "Content-Type: application/json" \
   -d '{

@@ -4,7 +4,7 @@ import { PrismaClient } from "@prisma/client";
  * Bump when Prisma models change so HMR/dev doesn't keep a stale singleton.
  * Symptom of stale client: `db.thread` is undefined → findMany crashes.
  */
-const PRISMA_SCHEMA_REV = "threads-v1";
+const PRISMA_SCHEMA_REV = "quota-v1";
 
 const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;

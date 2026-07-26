@@ -1,5 +1,8 @@
 /** Shared multi-language API examples for docs. */
 
+/** Official public API host */
+export const MANIMOTION_API = "https://api.manimotion.dev";
+
 export const CREATE_JOB = {
   curl: `curl -sS -X POST "$MANIMOTION_API/video/request" \\
   -H "Content-Type: application/json" \\

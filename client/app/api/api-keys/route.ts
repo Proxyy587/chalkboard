@@ -66,6 +66,9 @@ export async function POST(req: Request) {
 
   const { fullKey, prefix, hash } = generateApiKey(input.environment);
 
+  const { isOwnerEmail } = await import("@/lib/quota");
+  const plan = isOwnerEmail(user.email) ? "OWNER" : "FREE";
+
   const apiKey = await db.apiKey.create({
     data: {
       userId: user.id,
@@ -74,8 +77,9 @@ export async function POST(req: Request) {
       keyHash: hash,
       type: input.type,
       environment: input.environment === "test" ? "TEST" : "LIVE",
+      plan,
     },
-    select: { id: true, name: true, prefix: true, createdAt: true },
+    select: { id: true, name: true, prefix: true, createdAt: true, plan: true },
   });
 
   return NextResponse.json({

@@ -185,6 +185,7 @@ enum ApiKeyPlan {
   PRO
   CREATOR
   ENTERPRISE
+  OWNER
 }
 
 enum StorageProvider {
@@ -248,4 +249,22 @@ model ThreadVideo {
   @@index([threadId, createdAt])
   @@index([jobId])
   @@map("thread_videos")
+}
+
+// ─── Generation quotas (guest IP + free daily limits) ─────────────────────────
+
+model GenerationQuota {
+  id      String @id @default(cuid())
+  /// e.g. ip:<sha256> | user:<id> | key:<apiKeyId>
+  subject String
+  /// "lifetime" for guests, or YYYY-MM-DD for daily caps
+  window  String
+  count   Int      @default(0)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([subject, window])
+  @@index([subject])
+  @@map("generation_quotas")
 }
