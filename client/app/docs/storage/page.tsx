@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { CodeTabs } from "@/components/docs/code-tabs";
@@ -17,6 +18,23 @@ import {
   STORAGE_INTEGRATION,
   asTabs,
 } from "@/lib/docs-examples";
+import { pageMetadata } from "@/lib/seo";
+import { docsJsonLd } from "@/lib/docs-jsonld";
+import { JsonLd } from "@/components/seo/json-ld";
+
+export const metadata: Metadata = pageMetadata({
+  title: "Storage",
+  description:
+    "Ship manimotion MP4s to your Cloudflare R2, AWS S3, or MinIO bucket — saved integration_id or inline credentials.",
+  path: "/docs/storage",
+  keywords: [
+    "BYO storage",
+    "R2 video upload",
+    "S3 lecture video",
+    "storage.integration_id",
+    "storage.inline",
+  ],
+});
 
 const TOC = [
   { id: "modes", label: "Modes" },
@@ -29,6 +47,14 @@ const TOC = [
 export default function DocsStoragePage() {
   return (
     <DocShell toc={TOC}>
+      <JsonLd
+        data={docsJsonLd({
+          title: "Storage",
+          description:
+            "Upload finished videos to your R2 or S3 bucket via integration_id or inline.",
+          path: "/docs/storage",
+        })}
+      />
       <p className="mm-label">API</p>
       <DocH1>Storage</DocH1>
       <DocLead>

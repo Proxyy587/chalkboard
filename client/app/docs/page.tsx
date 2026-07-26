@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { CodeTabs } from "@/components/docs/code-tabs";
@@ -16,6 +17,21 @@ import {
   CREATE_JOB_RESPONSE,
   asTabs,
 } from "@/lib/docs-examples";
+import { pageMetadata } from "@/lib/seo";
+import { docsJsonLd } from "@/lib/docs-jsonld";
+import { JsonLd } from "@/components/seo/json-ld";
+
+export const metadata: Metadata = pageMetadata({
+  title: "Introduction",
+  description:
+    "What is manimotion? Turn a STEM prompt into a narrated lecture video via HTTP — Manim, Remotion, voice, and sync included.",
+  path: "/docs",
+  keywords: [
+    "manimotion introduction",
+    "text to lecture video",
+    "educational video API overview",
+  ],
+});
 
 const TOC = [
   { id: "what", label: "What is manimotion?" },
@@ -28,6 +44,14 @@ const TOC = [
 export default function DocsIntroPage() {
   return (
     <DocShell toc={TOC}>
+      <JsonLd
+        data={docsJsonLd({
+          title: "Introduction",
+          description:
+            "Turn a STEM prompt into a narrated lecture video via HTTP.",
+          path: "/docs",
+        })}
+      />
       <p className="mm-label">Get started</p>
       <DocH1>Introduction</DocH1>
       <DocLead>

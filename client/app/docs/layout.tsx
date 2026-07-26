@@ -1,9 +1,23 @@
+import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
 import { DocsSideNav } from "@/components/docs/docs-side-nav";
 import { ThemeToggle } from "@/components/theme/theme-provider";
+import { pageMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = pageMetadata({
+  title: "Docs",
+  description:
+    "manimotion docs — generate educational and explainer videos from a single prompt via a simple developer API.",
+  path: "/docs",
+  keywords: [
+    "manimotion documentation",
+    "video API docs",
+    "text to video API guide",
+  ],
+});
 
 export default function DocsRootLayout({ children }: { children: ReactNode }) {
   return (

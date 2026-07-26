@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { CodeTabs } from "@/components/docs/code-tabs";
@@ -12,6 +13,22 @@ import {
   DocTable,
 } from "@/components/docs/doc-primitives";
 import { CREATE_JOB_RESPONSE, asTabs } from "@/lib/docs-examples";
+import { pageMetadata } from "@/lib/seo";
+import { docsJsonLd } from "@/lib/docs-jsonld";
+import { JsonLd } from "@/components/seo/json-ld";
+
+export const metadata: Metadata = pageMetadata({
+  title: "Engines",
+  description:
+    "Choose Manim, Remotion, or auto for manimotion lecture videos — when to force each animation engine.",
+  path: "/docs/engines",
+  keywords: [
+    "Manim API",
+    "Remotion API",
+    "math animation engine",
+    "lecture video engine",
+  ],
+});
 
 const TOC = [
   { id: "pick", label: "Which engine?" },
@@ -24,6 +41,13 @@ const TOC = [
 export default function DocsEnginesPage() {
   return (
     <DocShell toc={TOC}>
+      <JsonLd
+        data={docsJsonLd({
+          title: "Engines",
+          description: "Manim vs Remotion vs auto for lecture videos.",
+          path: "/docs/engines",
+        })}
+      />
       <p className="mm-label">API</p>
       <DocH1>Engines</DocH1>
       <DocLead>

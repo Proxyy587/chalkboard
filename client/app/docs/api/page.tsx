@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { CodeTabs } from "@/components/docs/code-tabs";
@@ -19,6 +20,23 @@ import {
   POLL_STATUS,
   asTabs,
 } from "@/lib/docs-examples";
+import { pageMetadata } from "@/lib/seo";
+import { docsJsonLd } from "@/lib/docs-jsonld";
+import { JsonLd } from "@/components/seo/json-ld";
+
+export const metadata: Metadata = pageMetadata({
+  title: "API reference",
+  description:
+    "manimotion Video API reference — POST /video/request, GET /video/status, auth headers, errors, and quotas at api.manimotion.dev.",
+  path: "/docs/api",
+  keywords: [
+    "manimotion API",
+    "video request endpoint",
+    "x-api-key",
+    "api.manimotion.dev",
+    "job status polling",
+  ],
+});
 
 const TOC = [
   { id: "auth", label: "Auth header" },
@@ -32,6 +50,14 @@ const TOC = [
 export default function DocsApiPage() {
   return (
     <DocShell toc={TOC}>
+      <JsonLd
+        data={docsJsonLd({
+          title: "API reference",
+          description:
+            "POST /video/request and GET /video/status — full manimotion API.",
+          path: "/docs/api",
+        })}
+      />
       <p className="mm-label">API</p>
       <DocH1>Reference</DocH1>
       <DocLead>

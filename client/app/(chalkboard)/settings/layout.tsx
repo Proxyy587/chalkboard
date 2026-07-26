@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
@@ -6,6 +7,14 @@ import { AccountMenu, HistoryMenu } from "@/components/account/account-menu";
 import { SettingsNav } from "@/components/settings/settings-nav";
 import { SessionGate } from "@/components/settings/session-gate";
 import { ThemeToggle } from "@/components/theme/theme-provider";
+import { pageMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = pageMetadata({
+  title: "Settings",
+  description: "Manage manimotion API keys and storage integrations.",
+  path: "/settings",
+  noIndex: true,
+});
 
 export default function SettingsLayout({ children }: { children: ReactNode }) {
   return (

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { CodeBlock } from "@/components/docs/code-block";
@@ -10,6 +11,17 @@ import {
   DocP,
   DocShell,
 } from "@/components/docs/doc-primitives";
+import { pageMetadata } from "@/lib/seo";
+import { docsJsonLd } from "@/lib/docs-jsonld";
+import { JsonLd } from "@/components/seo/json-ld";
+
+export const metadata: Metadata = pageMetadata({
+  title: "Contributing",
+  description:
+    "Contribute to manimotion — local web app, video worker, and pull request guidelines.",
+  path: "/docs/contributing",
+  keywords: ["manimotion contribute", "open source video API"],
+});
 
 const TOC = [
   { id: "before", label: "Before you start" },
@@ -23,6 +35,13 @@ const TOC = [
 export default function DocsContributingPage() {
   return (
     <DocShell toc={TOC}>
+      <JsonLd
+        data={docsJsonLd({
+          title: "Contributing",
+          description: "How to contribute to the manimotion project.",
+          path: "/docs/contributing",
+        })}
+      />
       <p className="mm-label">Project</p>
       <DocH1>Contributing</DocH1>
       <DocLead>

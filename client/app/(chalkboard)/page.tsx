@@ -107,12 +107,12 @@ export default function LandingPage() {
       setValue("");
       router.push(`/thread/${id}`);
     },
-    [busy, createThreadFromPrompt, duration, model, router]
+    [busy, createThreadFromPrompt, duration, model, router],
   );
 
   async function copyCmd() {
     await navigator.clipboard.writeText(
-      'curl -X POST "$MANIMOTION_API/video/request" -H "x-api-key: $KEY"'
+      'curl -X POST "$MANIMOTION_API/video/request" -H "x-api-key: $KEY"',
     );
     setCopied(true);
     setTimeout(() => setCopied(false), 1600);
@@ -158,14 +158,15 @@ export default function LandingPage() {
           STEM lectures as motion graphics — for talks, tutors, and products.
         </p>
         <p className="lp-position">
-          Describe a topic. We plan beats, narrate, animate with{" "}
-          <b>Manim</b> or <b>Remotion</b>, and sync audio to the cut. Open demo —
-          no account required.
+          Describe a topic. We plan beats, narrate, animate with <b>Manim</b> or{" "}
+          <b>Remotion</b>, and sync audio to the cut. Open demo — no account
+          required.
         </p>
 
         <div className="lp-cmd">
           <code>
-            curl -X POST $API/video/request -H &quot;x-api-key: $KEY&quot;
+            curl -X POST https://api.manimotion.dev/video/request -H
+            &quot;x-api-key: $KEY&quot;
           </code>
           <button type="button" className="copy" onClick={() => void copyCmd()}>
             {copied ? "Copied" : "Copy"}
@@ -311,7 +312,10 @@ export default function LandingPage() {
               <li>Follow the Quickstart in Docs</li>
               <li>Optional: point storage at your own bucket</li>
             </ul>
-            <div className="lp-cta-row" style={{ justifyContent: "flex-start" }}>
+            <div
+              className="lp-cta-row"
+              style={{ justifyContent: "flex-start" }}
+            >
               <Link href="/docs/quickstart" className="lp-btn primary">
                 Open Quickstart
               </Link>

@@ -323,6 +323,28 @@
   }
 }
 
+/* Shiki syntax highlighting (docs code blocks) */
+.shiki-block {
+  font-family: var(--font-jetbrains-mono), var(--font-geist-mono), ui-monospace,
+    monospace;
+}
+
+.shiki-block pre {
+  margin: 0;
+  background: transparent !important;
+}
+
+.shiki-block code {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.shiki-block .line {
+  display: inline-block;
+  width: 100%;
+  min-height: 1.25em;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   ::before,

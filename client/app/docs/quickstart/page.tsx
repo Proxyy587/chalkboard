@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { CodeBlock } from "@/components/docs/code-block";
@@ -19,6 +20,21 @@ import {
   STORAGE_INLINE_R2,
   asTabs,
 } from "@/lib/docs-examples";
+import { pageMetadata } from "@/lib/seo";
+import { docsJsonLd } from "@/lib/docs-jsonld";
+import { JsonLd } from "@/components/seo/json-ld";
+
+export const metadata: Metadata = pageMetadata({
+  title: "Quickstart",
+  description:
+    "Create your first manimotion video in minutes — API key, storage, POST /video/request, poll until you get an MP4 URL.",
+  path: "/docs/quickstart",
+  keywords: [
+    "manimotion quickstart",
+    "video API tutorial",
+    "generate video API example",
+  ],
+});
 
 const TOC = [
   { id: "setup", label: "1. Setup" },
@@ -30,6 +46,14 @@ const TOC = [
 export default function DocsQuickstartPage() {
   return (
     <DocShell toc={TOC}>
+      <JsonLd
+        data={docsJsonLd({
+          title: "Quickstart",
+          description:
+            "Create your first manimotion video in minutes via the API.",
+          path: "/docs/quickstart",
+        })}
+      />
       <p className="mm-label">Get started</p>
       <DocH1>Quickstart</DocH1>
       <DocLead>
