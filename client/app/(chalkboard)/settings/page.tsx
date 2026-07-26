@@ -57,8 +57,8 @@ export default function SettingsOverviewPage() {
             Storage
           </h3>
           <p className="mt-2 text-[12px] leading-relaxed text-[var(--muted-text)]">
-            R2, S3, MinIO, Backblaze, UploadThing. Credentials encrypted
-            AES-256-GCM.
+            Save R2 / S3 credentials encrypted in the database. Worker decrypts
+            only to upload.
           </p>
           <span className="mt-4 inline-flex items-center gap-1 text-[11px] text-[var(--ink-soft)] group-hover:text-foreground">
             Add bucket <ArrowUpRight className="size-3" />

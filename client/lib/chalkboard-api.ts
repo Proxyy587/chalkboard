@@ -157,12 +157,7 @@ export async function createLectureJob(
   if (opts?.duration != null) body.duration = opts.duration;
 
   const headers = apiHeaders();
-  if (!headers["x-api-key"]) {
-    throw new Error(
-      "Missing API key. Create one in Settings → API keys, then click “Use in this browser”."
-    );
-  }
-
+  // Open demo: Next proxy injects CLARITY_API_KEY when the browser has no key.
   const res = await fetch("/api/video/request", {
     method: "POST",
     headers,

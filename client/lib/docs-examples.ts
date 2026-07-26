@@ -6,7 +6,17 @@ export const CREATE_JOB = {
   -H "x-api-key: $MANIMOTION_KEY" \\
   -d '{
     "prompt": "Explain Bayes theorem with a medical testing example",
-    "engine": "auto"
+    "engine": "auto",
+    "storage": {
+      "inline": {
+        "provider": "r2",
+        "bucket": "my-lectures",
+        "access_key_id": "'"$R2_ACCESS_KEY_ID"'",
+        "secret_access_key": "'"$R2_SECRET_ACCESS_KEY"'",
+        "account_id": "'"$R2_ACCOUNT_ID"'",
+        "public_url": "'"$R2_PUBLIC_BASE_URL"'"
+      }
+    }
   }'`,
   javascript: `const res = await fetch(\`\${process.env.MANIMOTION_API}/video/request\`, {
   method: "POST",
@@ -17,6 +27,16 @@ export const CREATE_JOB = {
   body: JSON.stringify({
     prompt: "Explain Bayes theorem with a medical testing example",
     engine: "auto",
+    storage: {
+      inline: {
+        provider: "r2",
+        bucket: process.env.R2_BUCKET_NAME,
+        access_key_id: process.env.R2_ACCESS_KEY_ID,
+        secret_access_key: process.env.R2_SECRET_ACCESS_KEY,
+        account_id: process.env.R2_ACCOUNT_ID,
+        public_url: process.env.R2_PUBLIC_BASE_URL,
+      },
+    },
   }),
 });
 
@@ -36,6 +56,16 @@ r = requests.post(
     json={
         "prompt": "Explain Bayes theorem with a medical testing example",
         "engine": "auto",
+        "storage": {
+            "inline": {
+                "provider": "r2",
+                "bucket": os.environ["R2_BUCKET_NAME"],
+                "access_key_id": os.environ["R2_ACCESS_KEY_ID"],
+                "secret_access_key": os.environ["R2_SECRET_ACCESS_KEY"],
+                "account_id": os.environ["R2_ACCOUNT_ID"],
+                "public_url": os.environ["R2_PUBLIC_BASE_URL"],
+            }
+        },
     },
 )
 print(r.json())`,
@@ -91,7 +121,19 @@ export const FULL_FLOW = {
   curl: `JOB=$(curl -sS -X POST "$MANIMOTION_API/video/request" \\
   -H "Content-Type: application/json" \\
   -H "x-api-key: $MANIMOTION_KEY" \\
-  -d '{"prompt":"Teach the product rule with a visual derivation"}' \\
+  -d "{
+    \\"prompt\\": \\"Teach the product rule with a visual derivation\\",
+    \\"storage\\": {
+      \\"inline\\": {
+        \\"provider\\": \\"r2\\",
+        \\"bucket\\": \\"$R2_BUCKET_NAME\\",
+        \\"access_key_id\\": \\"$R2_ACCESS_KEY_ID\\",
+        \\"secret_access_key\\": \\"$R2_SECRET_ACCESS_KEY\\",
+        \\"account_id\\": \\"$R2_ACCOUNT_ID\\",
+        \\"public_url\\": \\"$R2_PUBLIC_BASE_URL\\"
+      }
+    }
+  }" \\
   | python3 -c "import sys,json; print(json.load(sys.stdin)['job_id'])")
 
 echo "job=$JOB"
@@ -112,7 +154,20 @@ async function generate(prompt) {
       "Content-Type": "application/json",
       "x-api-key": KEY,
     },
-    body: JSON.stringify({ prompt, engine: "auto" }),
+    body: JSON.stringify({
+      prompt,
+      engine: "auto",
+      storage: {
+        inline: {
+          provider: "r2",
+          bucket: process.env.R2_BUCKET_NAME,
+          access_key_id: process.env.R2_ACCESS_KEY_ID,
+          secret_access_key: process.env.R2_SECRET_ACCESS_KEY,
+          account_id: process.env.R2_ACCOUNT_ID,
+          public_url: process.env.R2_PUBLIC_BASE_URL,
+        },
+      },
+    }),
   }).then((r) => r.json());
 
   if (!create.job_id) throw new Error(JSON.stringify(create));
@@ -139,7 +194,19 @@ H = {"x-api-key": KEY, "Content-Type": "application/json"}
 create = requests.post(
     f"{API}/video/request",
     headers=H,
-    json={"prompt": "Teach the product rule with a visual derivation"},
+    json={
+        "prompt": "Teach the product rule with a visual derivation",
+        "storage": {
+            "inline": {
+                "provider": "r2",
+                "bucket": os.environ["R2_BUCKET_NAME"],
+                "access_key_id": os.environ["R2_ACCESS_KEY_ID"],
+                "secret_access_key": os.environ["R2_SECRET_ACCESS_KEY"],
+                "account_id": os.environ["R2_ACCOUNT_ID"],
+                "public_url": os.environ["R2_PUBLIC_BASE_URL"],
+            }
+        },
+    },
 ).json()
 job_id = create["job_id"]
 
@@ -215,6 +282,127 @@ r = requests.post(
     },
 )
 print(r.json())`,
+};
+
+export const STORAGE_INLINE_S3 = {
+  curl: `curl -sS -X POST "$MANIMOTION_API/video/request" \\
+  -H "Content-Type: application/json" \\
+  -H "x-api-key: $MANIMOTION_KEY" \\
+  -d '{
+    "prompt": "Explain Bayes theorem",
+    "storage": {
+      "inline": {
+        "provider": "s3",
+        "bucket": "my-lectures",
+        "access_key_id": "AKIA...",
+        "secret_access_key": "...",
+        "region": "us-east-1",
+        "public_url": "https://cdn.example.com"
+      }
+    }
+  }'`,
+  javascript: `await fetch(\`\${process.env.MANIMOTION_API}/video/request\`, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "x-api-key": process.env.MANIMOTION_KEY,
+  },
+  body: JSON.stringify({
+    prompt: "Explain Bayes theorem",
+    storage: {
+      inline: {
+        provider: "s3",
+        bucket: process.env.S3_BUCKET,
+        access_key_id: process.env.AWS_ACCESS_KEY_ID,
+        secret_access_key: process.env.AWS_SECRET_ACCESS_KEY,
+        region: "us-east-1",
+        public_url: process.env.S3_PUBLIC_URL,
+      },
+    },
+  }),
+});`,
+  python: `requests.post(
+    f"{API}/video/request",
+    headers={"Content-Type": "application/json", "x-api-key": KEY},
+    json={
+        "prompt": "Explain Bayes theorem",
+        "storage": {
+            "inline": {
+                "provider": "s3",
+                "bucket": "my-lectures",
+                "access_key_id": "...",
+                "secret_access_key": "...",
+                "region": "us-east-1",
+                "public_url": "https://cdn.example.com",
+            }
+        },
+    },
+)`,
+};
+
+export const STORAGE_MINIO = {
+  curl: `curl -sS -X POST "$MANIMOTION_API/video/request" \\
+  -H "Content-Type: application/json" \\
+  -H "x-api-key: $MANIMOTION_KEY" \\
+  -d '{
+    "prompt": "Timeline of the industrial revolution",
+    "engine": "remotion",
+    "storage": {
+      "inline": {
+        "provider": "minio",
+        "bucket": "lectures",
+        "access_key_id": "minio",
+        "secret_access_key": "minio123",
+        "region": "us-east-1",
+        "endpoint": "https://minio.example.com",
+        "force_path_style": true,
+        "public_url": "https://files.example.com"
+      }
+    }
+  }'`,
+  javascript: `await fetch(\`\${process.env.MANIMOTION_API}/video/request\`, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "x-api-key": process.env.MANIMOTION_KEY,
+  },
+  body: JSON.stringify({
+    prompt: "Timeline of the industrial revolution",
+    engine: "remotion",
+    storage: {
+      inline: {
+        provider: "minio",
+        bucket: "lectures",
+        access_key_id: process.env.MINIO_KEY,
+        secret_access_key: process.env.MINIO_SECRET,
+        region: "us-east-1",
+        endpoint: "https://minio.example.com",
+        force_path_style: true,
+        public_url: "https://files.example.com",
+      },
+    },
+  }),
+});`,
+  python: `requests.post(
+    f"{API}/video/request",
+    headers={"Content-Type": "application/json", "x-api-key": KEY},
+    json={
+        "prompt": "Timeline of the industrial revolution",
+        "engine": "remotion",
+        "storage": {
+            "inline": {
+                "provider": "minio",
+                "bucket": "lectures",
+                "access_key_id": "...",
+                "secret_access_key": "...",
+                "region": "us-east-1",
+                "endpoint": "https://minio.example.com",
+                "force_path_style": True,
+                "public_url": "https://files.example.com",
+            }
+        },
+    },
+)`,
 };
 
 export const STORAGE_INTEGRATION = {

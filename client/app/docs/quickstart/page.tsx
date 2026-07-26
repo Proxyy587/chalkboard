@@ -16,15 +16,15 @@ import {
   FULL_FLOW,
   POLL_COMPLETED_RESPONSE,
   POLL_STATUS,
+  STORAGE_INLINE_R2,
   asTabs,
 } from "@/lib/docs-examples";
 
 const TOC = [
   { id: "setup", label: "1. Setup" },
-  { id: "create", label: "2. Create a job" },
-  { id: "poll", label: "3. Poll status" },
-  { id: "loop", label: "4. Full loop" },
-  { id: "checklist", label: "Checklist" },
+  { id: "create", label: "2. Create" },
+  { id: "poll", label: "3. Poll" },
+  { id: "loop", label: "4. Loop" },
 ];
 
 export default function DocsQuickstartPage() {
@@ -33,23 +33,30 @@ export default function DocsQuickstartPage() {
       <p className="mm-label">Get started</p>
       <DocH1>Quickstart</DocH1>
       <DocLead>
-        Four steps. Get a key, create a job, poll until done, download the MP4.
-        Use the language tabs — cURL, JavaScript, or Python.
+        Key → storage → create job → poll → MP4 URL.
       </DocLead>
 
       <DocH2 id="setup">1. Setup</DocH2>
       <DocList>
         <li>
-          Create a key in{" "}
+          Create a{" "}
           <Link
             href="/settings/api-keys"
             className="text-foreground underline-offset-2 hover:underline"
           >
-            Settings → API keys
-          </Link>{" "}
-          (copy it once)
+            API key
+          </Link>
         </li>
-        <li>Put the API host + key in env vars on your machine / server</li>
+        <li>
+          Save a bucket in{" "}
+          <Link
+            href="/settings/storage"
+            className="text-foreground underline-offset-2 hover:underline"
+          >
+            Settings → Storage
+          </Link>{" "}
+          <em>or</em> keep R2 env vars for <code>storage.inline</code>
+        </li>
       </DocList>
       <CodeBlock
         className="mt-4"
@@ -59,72 +66,27 @@ export default function DocsQuickstartPage() {
 MANIMOTION_KEY=chalk_live_sk_v1_...`}
       />
       <div className="mt-4">
-        <DocCallout title="Keep the key server-side" tone="warn">
-          <p>
-            Never put <code>MANIMOTION_KEY</code> in a public frontend bundle.
-            Call the API from a backend, script, or serverless function.
-          </p>
+        <DocCallout title="Server-side only" tone="warn">
+          <p>Never ship the API key or bucket secrets in a public frontend.</p>
         </DocCallout>
       </div>
 
-      <DocH2 id="create">2. Create a job</DocH2>
+      <DocH2 id="create">2. Create</DocH2>
       <DocP>
-        <code>POST /video/request</code> with JSON. You get a{" "}
-        <code>job_id</code> back immediately.
+        If you saved storage in Settings, omit <code>storage</code>. Otherwise
+        pass <code>storage.inline</code>:
       </DocP>
       <CodeTabs
         className="mt-4"
-        examples={asTabs(
-          {
-            curl: `curl -sS -X POST "$MANIMOTION_API/video/request" \\
-  -H "Content-Type: application/json" \\
-  -H "x-api-key: $MANIMOTION_KEY" \\
-  -d '{
-    "prompt": "Explain the product rule with a visual derivation",
-    "engine": "manim"
-  }'`,
-            javascript: `const create = await fetch(\`\${process.env.MANIMOTION_API}/video/request\`, {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    "x-api-key": process.env.MANIMOTION_KEY,
-  },
-  body: JSON.stringify({
-    prompt: "Explain the product rule with a visual derivation",
-    engine: "manim",
-  }),
-}).then((r) => r.json());
-
-console.log(create.job_id); // save this`,
-            python: `import os, requests
-
-create = requests.post(
-    f"{os.environ['MANIMOTION_API']}/video/request",
-    headers={
-        "Content-Type": "application/json",
-        "x-api-key": os.environ["MANIMOTION_KEY"],
-    },
-    json={
-        "prompt": "Explain the product rule with a visual derivation",
-        "engine": "manim",
-    },
-).json()
-print(create["job_id"])  # save this`,
-          },
-          {
-            curl: "create.sh",
-            javascript: "create.mjs",
-            python: "create.py",
-          }
-        )}
+        examples={asTabs(STORAGE_INLINE_R2, {
+          curl: "create.sh",
+          javascript: "create.mjs",
+          python: "create.py",
+        })}
         response={CREATE_JOB_RESPONSE}
       />
 
-      <DocH2 id="poll">3. Poll status</DocH2>
-      <DocP>
-        Hit <code>GET /video/status/{"{job_id}"}</code> every 2–3 seconds until
-        status is <code>completed</code> or <code>failed</code>.
-      </DocP>
+      <DocH2 id="poll">3. Poll</DocH2>
       <CodeTabs
         className="mt-4"
         examples={asTabs(POLL_STATUS, {
@@ -133,13 +95,9 @@ print(create["job_id"])  # save this`,
           python: "poll.py",
         })}
         response={POLL_COMPLETED_RESPONSE}
-        responseTitle="completed.json"
       />
 
-      <DocH2 id="loop">4. Full loop (copy-paste)</DocH2>
-      <DocP>
-        One script that creates the job and waits for the URL.
-      </DocP>
+      <DocH2 id="loop">4. Full loop</DocH2>
       <CodeTabs
         className="mt-4"
         examples={asTabs(FULL_FLOW, {
@@ -147,32 +105,23 @@ print(create["job_id"])  # save this`,
           javascript: "generate.mjs",
           python: "generate.py",
         })}
-        response={`# when completed, your script prints something like:
-https://cdn.example.com/videos/a1b2c3d4.mp4`}
+        response={`https://cdn.example.com/videos/….mp4`}
         responseTitle="stdout"
       />
-
-      <DocH2 id="checklist">Checklist</DocH2>
-      <DocList>
-        <li>Key set in env as <code>MANIMOTION_KEY</code></li>
-        <li>Header <code>x-api-key</code> on every call</li>
-        <li>You saved <code>job_id</code> from the create response</li>
-        <li>You poll until <code>completed</code>, then use <code>video_url</code></li>
-      </DocList>
       <DocP>
-        Next: full field docs in the{" "}
-        <Link
-          href="/docs/api"
-          className="text-foreground underline-offset-2 hover:underline"
-        >
-          API reference
-        </Link>
-        , or send renders to your bucket in{" "}
+        More:{" "}
         <Link
           href="/docs/storage"
           className="text-foreground underline-offset-2 hover:underline"
         >
           Storage
+        </Link>{" "}
+        ·{" "}
+        <Link
+          href="/docs/api"
+          className="text-foreground underline-offset-2 hover:underline"
+        >
+          API
         </Link>
         .
       </DocP>

@@ -95,27 +95,32 @@ export function LandingMark({ className }: { className?: string }) {
       const rect = canvas.getBoundingClientRect();
       mouse.x = e.clientX - rect.left;
       mouse.y = e.clientY - rect.top;
-      mouse.active = true;
+      // Keep influence alive slightly outside the canvas so it doesn't feel boxed
+      const pad = 80;
+      mouse.active =
+        mouse.x >= -pad &&
+        mouse.y >= -pad &&
+        mouse.x <= w + pad &&
+        mouse.y <= h + pad;
     }
 
-    function onLeave() {
-      mouse.active = false;
-      mouse.x = -9999;
-      mouse.y = -9999;
+    function onWindowMove(e: PointerEvent) {
+      onMove(e);
     }
 
     function onDown(e: PointerEvent) {
       const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
       ripples.push({
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top,
+        x,
+        y,
         r: 4,
         life: 1,
       });
-      // playful kick
       for (const p of particles) {
-        const dx = p.x - (e.clientX - rect.left);
-        const dy = p.y - (e.clientY - rect.top);
+        const dx = p.x - x;
+        const dy = p.y - y;
         const dist = Math.hypot(dx, dy) || 1;
         if (dist < 90) {
           const f = ((90 - dist) / 90) * 6;
@@ -190,24 +195,7 @@ export function LandingMark({ className }: { className?: string }) {
         ctx.fill();
       }
 
-      // cursor glow
-      if (mouse.active) {
-        const cg = ctx.createRadialGradient(
-          mouse.x,
-          mouse.y,
-          0,
-          mouse.x,
-          mouse.y,
-          48
-        );
-        cg.addColorStop(0, withAlpha(ink, 0.12));
-        cg.addColorStop(1, withAlpha(ink, 0));
-        ctx.fillStyle = cg;
-        ctx.beginPath();
-        ctx.arc(mouse.x, mouse.y, 48, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
+      // soft cursor influence only via particles — no clipped glow disc
       ripples = ripples.filter((r) => r.life > 0);
       for (const r of ripples) {
         r.r += 2.4;
@@ -226,16 +214,14 @@ export function LandingMark({ className }: { className?: string }) {
     const ro = new ResizeObserver(resize);
     ro.observe(wrapEl);
 
-    canvas.addEventListener("pointermove", onMove, { passive: true });
-    canvas.addEventListener("pointerleave", onLeave);
+    window.addEventListener("pointermove", onWindowMove, { passive: true });
     canvas.addEventListener("pointerdown", onDown);
     raf = requestAnimationFrame(frame);
 
     return () => {
       cancelAnimationFrame(raf);
       ro.disconnect();
-      canvas.removeEventListener("pointermove", onMove);
-      canvas.removeEventListener("pointerleave", onLeave);
+      window.removeEventListener("pointermove", onWindowMove);
       canvas.removeEventListener("pointerdown", onDown);
     };
   }, [themeCtx?.theme]);

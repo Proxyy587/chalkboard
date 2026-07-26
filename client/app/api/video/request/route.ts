@@ -5,15 +5,22 @@ import type { VideoRequestBody } from "@/lib/video-api";
 
 /**
  * Proxy to the Python video worker.
- * Pass your API key via header: x-api-key: chalk_live_sk_v1_...
+ *
+ * Auth:
+ * - Prefer caller `x-api-key` (chalk_* user key or master key)
+ * - If missing, fall back to server `CLARITY_API_KEY` for the open home demo
+ *   (platform .env R2 on the worker). Never expose that key to the browser.
  */
 export async function POST(req: Request) {
-  const apiKey = req.headers.get("x-api-key")?.trim();
+  const incoming = req.headers.get("x-api-key")?.trim();
+  const master = process.env.CLARITY_API_KEY?.trim();
+  const apiKey = incoming || master;
+
   if (!apiKey) {
     return NextResponse.json(
       {
         error:
-          "Missing x-api-key header. Create a key in Settings → API Keys.",
+          "Missing API key. Create one in Settings → API keys, or set CLARITY_API_KEY on the Next.js server for the open demo.",
       },
       { status: 401 }
     );

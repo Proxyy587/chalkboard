@@ -41,14 +41,22 @@ export default function DocsApiPage() {
 
       <DocH2 id="auth">Auth header</DocH2>
       <DocP>
-        Every call needs <code>x-api-key</code>. Create keys in{" "}
+        Every call needs <code>x-api-key</code> (
+        <code>chalk_live_sk_v1_…</code> from{" "}
         <Link
           href="/settings/api-keys"
           className="text-foreground underline-offset-2 hover:underline"
         >
           Settings → API keys
         </Link>
-        .
+        ). Public keys must also send{" "}
+        <Link
+          href="/docs/storage"
+          className="text-foreground underline-offset-2 hover:underline"
+        >
+          storage.inline
+        </Link>{" "}
+        — there is no shared default bucket for API users.
       </DocP>
       <CodeTabs
         className="mt-4"

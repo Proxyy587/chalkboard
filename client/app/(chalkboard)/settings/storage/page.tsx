@@ -191,8 +191,8 @@ export default function StorageSettingsPage() {
             Storage
           </h2>
           <p className="mt-2 max-w-lg text-[13px] text-[var(--muted-text)]">
-            Videos upload to your bucket when configured. Credentials encrypted
-            at rest.
+            Credentials are encrypted (AES-256-GCM) before they hit the
+            database. Secrets are never returned by the API — only metadata.
           </p>
         </div>
         <Button type="button" onClick={() => setShowForm(true)}>
@@ -206,7 +206,8 @@ export default function StorageSettingsPage() {
           <DialogHeader>
             <DialogTitle>Add storage</DialogTitle>
             <DialogDescription>
-              Connect R2, S3, or another compatible bucket for finished MP4s.
+              Connect R2, S3, or another compatible bucket. We encrypt credentials
+              at rest; the worker decrypts only to upload.
             </DialogDescription>
           </DialogHeader>
 

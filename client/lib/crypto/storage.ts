@@ -34,6 +34,9 @@ export function decryptCredentials<T = Record<string, string>>(encryptedData: st
   const iv = Buffer.from(ivB64, "base64");
   const tag = Buffer.from(tagB64, "base64");
   const encrypted = Buffer.from(encryptedB64, "base64");
+  if (iv.length !== 12 || tag.length !== 16) {
+    throw new Error("Invalid encrypted data lengths");
+  }
   const decipher = createDecipheriv(ALGORITHM, key, iv);
   decipher.setAuthTag(tag);
   const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
