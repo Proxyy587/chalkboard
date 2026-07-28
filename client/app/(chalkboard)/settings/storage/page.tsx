@@ -152,7 +152,6 @@ export default function StorageSettingsPage() {
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Save failed";
       setError(msg);
-      toast.error(msg);
     } finally {
       setSaving(false);
     }
@@ -187,9 +186,9 @@ export default function StorageSettingsPage() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="mm-label">Buckets</p>
-          <h2 className="mt-1 text-[1.25rem] font-semibold tracking-tight text-foreground">
+          <h1 className="mt-1 text-[1.25rem] font-semibold tracking-tight text-foreground">
             Storage
-          </h2>
+          </h1>
           <p className="mt-2 max-w-lg text-[13px] text-[var(--muted-text)]">
             Credentials are encrypted (AES-256-GCM) before they hit the
             database. Secrets are never returned by the API — only metadata.
@@ -213,8 +212,9 @@ export default function StorageSettingsPage() {
 
           <div className="grid gap-4">
             <div>
-              <Label>Name</Label>
+              <Label htmlFor="storage-name">Name</Label>
               <Input
+                id="storage-name"
                 className="mt-2"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -222,12 +222,12 @@ export default function StorageSettingsPage() {
               />
             </div>
             <div>
-              <Label>Provider</Label>
+              <Label htmlFor="storage-provider">Provider</Label>
               <Select
                 value={provider}
                 onValueChange={(v) => setProvider(v as Provider)}
               >
-                <SelectTrigger className="mt-2 w-full">
+                <SelectTrigger id="storage-provider" className="mt-2 w-full" aria-label="Storage provider">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -242,8 +242,9 @@ export default function StorageSettingsPage() {
 
             {provider === "UPLOADTHING" ? (
               <div>
-                <Label>API token</Label>
+                <Label htmlFor="storage-ut-token">API token</Label>
                 <Input
+                  id="storage-ut-token"
                   className="mt-2"
                   type="password"
                   value={uploadThingToken}
@@ -253,24 +254,27 @@ export default function StorageSettingsPage() {
             ) : provider === "R2" ? (
               <>
                 <div>
-                  <Label>Account ID</Label>
+                  <Label htmlFor="storage-account-id">Account ID</Label>
                   <Input
+                    id="storage-account-id"
                     className="mt-2"
                     value={accountId}
                     onChange={(e) => setAccountId(e.target.value)}
                   />
                 </div>
                 <div>
-                  <Label>Access key ID</Label>
+                  <Label htmlFor="storage-access-key">Access key ID</Label>
                   <Input
+                    id="storage-access-key"
                     className="mt-2"
                     value={accessKeyId}
                     onChange={(e) => setAccessKeyId(e.target.value)}
                   />
                 </div>
                 <div>
-                  <Label>Secret access key</Label>
+                  <Label htmlFor="storage-secret-key">Secret access key</Label>
                   <Input
+                    id="storage-secret-key"
                     className="mt-2"
                     type="password"
                     value={secretAccessKey}
@@ -278,16 +282,18 @@ export default function StorageSettingsPage() {
                   />
                 </div>
                 <div>
-                  <Label>Bucket</Label>
+                  <Label htmlFor="storage-bucket">Bucket</Label>
                   <Input
+                    id="storage-bucket"
                     className="mt-2"
                     value={bucketName}
                     onChange={(e) => setBucketName(e.target.value)}
                   />
                 </div>
                 <div>
-                  <Label>Public URL (optional)</Label>
+                  <Label htmlFor="storage-public-url">Public URL (optional)</Label>
                   <Input
+                    id="storage-public-url"
                     className="mt-2"
                     value={publicUrl}
                     onChange={(e) => setPublicUrl(e.target.value)}
@@ -298,16 +304,18 @@ export default function StorageSettingsPage() {
             ) : (
               <>
                 <div>
-                  <Label>Access key ID</Label>
+                  <Label htmlFor="storage-access-key-s3">Access key ID</Label>
                   <Input
+                    id="storage-access-key-s3"
                     className="mt-2"
                     value={accessKeyId}
                     onChange={(e) => setAccessKeyId(e.target.value)}
                   />
                 </div>
                 <div>
-                  <Label>Secret access key</Label>
+                  <Label htmlFor="storage-secret-key-s3">Secret access key</Label>
                   <Input
+                    id="storage-secret-key-s3"
                     className="mt-2"
                     type="password"
                     value={secretAccessKey}
@@ -315,32 +323,36 @@ export default function StorageSettingsPage() {
                   />
                 </div>
                 <div>
-                  <Label>Bucket</Label>
+                  <Label htmlFor="storage-bucket-s3">Bucket</Label>
                   <Input
+                    id="storage-bucket-s3"
                     className="mt-2"
                     value={bucketName}
                     onChange={(e) => setBucketName(e.target.value)}
                   />
                 </div>
                 <div>
-                  <Label>Region</Label>
+                  <Label htmlFor="storage-region">Region</Label>
                   <Input
+                    id="storage-region"
                     className="mt-2"
                     value={region}
                     onChange={(e) => setRegion(e.target.value)}
                   />
                 </div>
                 <div>
-                  <Label>Endpoint (optional)</Label>
+                  <Label htmlFor="storage-endpoint">Endpoint (optional)</Label>
                   <Input
+                    id="storage-endpoint"
                     className="mt-2"
                     value={endpoint}
                     onChange={(e) => setEndpoint(e.target.value)}
                   />
                 </div>
                 <div>
-                  <Label>Public URL (optional)</Label>
+                  <Label htmlFor="storage-public-url-s3">Public URL (optional)</Label>
                   <Input
+                    id="storage-public-url-s3"
                     className="mt-2"
                     value={publicUrl}
                     onChange={(e) => setPublicUrl(e.target.value)}
@@ -348,7 +360,11 @@ export default function StorageSettingsPage() {
                 </div>
               </>
             )}
-            {error && <p className="text-[12px] text-red-400">{error}</p>}
+            {error && (
+              <p className="text-[12px] text-red-400" role="alert">
+                {error}
+              </p>
+            )}
           </div>
 
           <DialogFooter>
@@ -414,6 +430,8 @@ export default function StorageSettingsPage() {
                 type="button"
                 variant="ghost"
                 size="sm"
+                aria-label={`Test storage ${row.name}`}
+                title="Test connection"
                 onClick={() => void test(row.id)}
               >
                 <RefreshCw className="size-3.5" />
@@ -423,6 +441,8 @@ export default function StorageSettingsPage() {
                 variant="ghost"
                 size="sm"
                 className="text-red-400"
+                aria-label={`Remove storage ${row.name}`}
+                title={`Remove ${row.name}`}
                 onClick={() => setRemoveId(row.id)}
               >
                 <Trash2 className="size-3.5" />

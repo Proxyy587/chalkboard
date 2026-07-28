@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { jsonError, storageCreateSchema, unauthorized } from "@/lib/api/schemas";
+import { jsonError, formatZodError, storageCreateSchema, unauthorized } from "@/lib/api/schemas";
 import { requireCurrentUser } from "@/lib/auth/session";
 import { encryptCredentials } from "@/lib/crypto/storage";
 import { db } from "@/lib/db";
@@ -47,12 +47,21 @@ export async function POST(req: Request) {
   try {
     input = storageCreateSchema.parse(await req.json());
   } catch (e) {
-    return jsonError(e instanceof Error ? e.message : "Invalid storage config", 400);
+    return jsonError(formatZodError(e), 400);
   }
 
   const test = await testStorageConfig(input.provider, input.config);
   if (!test.success) {
-    return jsonError(`Connection test failed: ${test.error ?? "unknown"}`, 400);
+    const raw = test.error ?? "unknown";
+    const friendly =
+      /CERTIFICATE|SSL|TLS|handshake/i.test(raw)
+        ? "Could not connect securely to the storage endpoint. Check the endpoint URL and credentials."
+        : /InvalidAccessKeyId|SignatureDoesNotMatch|AccessDenied|403/i.test(raw)
+          ? "Storage rejected the credentials. Check access key, secret, and bucket permissions."
+          : /NoSuchBucket|404/i.test(raw)
+            ? "Bucket not found. Check the bucket name."
+            : "Could not verify storage. Check bucket, region/endpoint, and credentials.";
+    return jsonError(friendly, 400);
   }
 
   const encryptedConfig = encryptCredentials(input.config);

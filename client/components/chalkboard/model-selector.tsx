@@ -33,7 +33,11 @@ export function ModelSelector({
   return (
     <div className={cn("flex flex-wrap items-center gap-2", className)}>
       <Select value={model} onValueChange={onModelChange}>
-        <SelectTrigger size="sm" className="max-w-[200px] min-w-[140px]">
+        <SelectTrigger
+          size="sm"
+          className="max-w-[200px] min-w-[140px]"
+          aria-label="Lecture model"
+        >
           <SelectValue placeholder="Model" />
         </SelectTrigger>
         <SelectContent>
@@ -55,7 +59,11 @@ export function ModelSelector({
             onDurationChange(v === "auto" ? undefined : Number(v))
           }
         >
-          <SelectTrigger size="sm" className="min-w-[110px]">
+          <SelectTrigger
+            size="sm"
+            className="min-w-[110px]"
+            aria-label="Lecture length"
+          >
             <SelectValue placeholder="Duration" />
           </SelectTrigger>
           <SelectContent>

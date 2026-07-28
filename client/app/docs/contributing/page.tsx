@@ -34,7 +34,7 @@ const TOC = [
 
 export default function DocsContributingPage() {
   return (
-    <DocShell toc={TOC}>
+    <DocShell toc={TOC} pageTitle="Contributing">
       <JsonLd
         data={docsJsonLd({
           title: "Contributing",

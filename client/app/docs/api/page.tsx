@@ -49,7 +49,7 @@ const TOC = [
 
 export default function DocsApiPage() {
   return (
-    <DocShell toc={TOC}>
+    <DocShell toc={TOC} pageTitle="API reference">
       <JsonLd
         data={docsJsonLd({
           title: "API reference",

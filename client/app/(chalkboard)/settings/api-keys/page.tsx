@@ -108,9 +108,9 @@ export default function ApiKeysSettingsPage() {
     <div className="space-y-8">
       <header>
         <p className="mm-label">Credentials</p>
-        <h2 className="mt-1 text-[1.25rem] font-semibold tracking-tight text-foreground">
+        <h1 className="mt-1 text-[1.25rem] font-semibold tracking-tight text-foreground">
           API keys
-        </h2>
+        </h1>
         <p className="mt-2 text-[13px] text-[var(--muted-text)]">
           Send{" "}
           <code className="border border-[var(--chip-line)] bg-[var(--bg)] px-1.5 py-0.5 text-[11px] text-[var(--muted-text)]">
@@ -182,6 +182,8 @@ export default function ApiKeysSettingsPage() {
               variant="ghost"
               size="sm"
               className="text-red-400"
+              aria-label={`Revoke API key ${key.name}`}
+              title={`Revoke ${key.name}`}
               onClick={() => setRevokeTarget(key)}
             >
               <Trash2 className="size-3.5" />

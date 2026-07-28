@@ -26,7 +26,7 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
             className="inline-flex items-center gap-1.5 text-[12px] text-[var(--muted-text)] transition-colors hover:text-foreground"
           >
             <ArrowLeft className="size-3.5" strokeWidth={1.5} />
-            Back
+            Home
           </Link>
           <span className="hidden h-3 w-px bg-border sm:block" />
           <Link href="/settings" className="mm-brand truncate text-[13px]">
@@ -39,9 +39,15 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
         <nav className="flex items-center gap-2">
           <Link
             href="/docs"
-            className="hidden text-[12px] text-[var(--muted-text)] transition-colors hover:text-foreground sm:inline"
+            className="text-[12px] text-[var(--muted-text)] transition-colors hover:text-foreground"
           >
             Docs
+          </Link>
+          <Link
+            href="/settings"
+            className="text-[12px] text-[var(--muted-text)] transition-colors hover:text-foreground sm:hidden"
+          >
+            Settings
           </Link>
           <HistoryMenu />
           <ThemeToggle />

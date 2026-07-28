@@ -40,7 +40,7 @@ const TOC = [
 
 export default function DocsEnginesPage() {
   return (
-    <DocShell toc={TOC}>
+    <DocShell toc={TOC} pageTitle="Engines">
       <JsonLd
         data={docsJsonLd({
           title: "Engines",

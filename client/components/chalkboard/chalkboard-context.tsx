@@ -22,6 +22,7 @@ import {
   fetchJobStatus,
   sleep,
 } from "@/lib/chalkboard-api";
+import { validatePrompt } from "@/lib/prompt";
 import type {
   Thread,
   ThreadMessage,
@@ -343,32 +344,32 @@ export function ChalkboardProvider({ children }: { children: ReactNode }) {
     (threadId: string, content: string) => {
       const text = content.trim();
       if (!text) return;
+      const t = baseThreads[threadId] ?? optimisticThreads[threadId];
+      if (!t) return;
+      const existing = t.messages.find((m) => m.role === "user");
+      const userMsg: ThreadMessage = existing
+        ? { ...existing, content: text, createdAt: Date.now() }
+        : { id: uid(), role: "user", content: text, createdAt: Date.now() };
+      const thread: Thread = {
+        ...t,
+        title: truncateTitle(text),
+        messages: [userMsg],
+        updatedAt: Date.now(),
+      };
+      startTransition(() => applyOptimistic({ type: "upsert", thread }));
       setBaseThreads((prev) => {
-        const t = prev[threadId];
-        if (!t) return prev;
-        const existing = t.messages.find((m) => m.role === "user");
-        const userMsg: ThreadMessage = existing
-          ? { ...existing, content: text, createdAt: Date.now() }
-          : { id: uid(), role: "user", content: text, createdAt: Date.now() };
-        const thread: Thread = {
-          ...t,
-          title: truncateTitle(text),
-          messages: [userMsg],
-          updatedAt: Date.now(),
-        };
-        startTransition(() => applyOptimistic({ type: "upsert", thread }));
         const next = { ...prev, [threadId]: thread };
         saveLocalThreads(next);
-        if (signedIn) {
-          void patchThreadOnApi(threadId, {
-            title: thread.title,
-            prompt: text,
-          }).catch(() => toast.error("Failed to sync prompt"));
-        }
         return next;
       });
+      if (signedIn) {
+        void patchThreadOnApi(threadId, {
+          title: thread.title,
+          prompt: text,
+        }).catch(() => toast.error("Failed to sync prompt"));
+      }
     },
-    [applyOptimistic, signedIn]
+    [applyOptimistic, baseThreads, optimisticThreads, signedIn]
   );
 
   const deleteThread = useCallback(
@@ -392,42 +393,42 @@ export function ChalkboardProvider({ children }: { children: ReactNode }) {
   const setThreadModel = useCallback(
     (threadId: string, model: string) => {
       const m = model.trim() || DEFAULT_LECTURE_MODEL;
+      const t = baseThreads[threadId] ?? optimisticThreads[threadId];
+      if (!t) return;
+      const thread = { ...t, model: m, updatedAt: Date.now() };
+      startTransition(() => applyOptimistic({ type: "upsert", thread }));
       setBaseThreads((prev) => {
-        const t = prev[threadId];
-        if (!t) return prev;
-        const thread = { ...t, model: m, updatedAt: Date.now() };
-        startTransition(() => applyOptimistic({ type: "upsert", thread }));
         const next = { ...prev, [threadId]: thread };
         saveLocalThreads(next);
-        if (signedIn) {
-          void patchThreadOnApi(threadId, { model: m }).catch(() =>
-            toast.error("Failed to sync model")
-          );
-        }
         return next;
       });
+      if (signedIn) {
+        void patchThreadOnApi(threadId, { model: m }).catch(() =>
+          toast.error("Failed to sync model")
+        );
+      }
     },
-    [applyOptimistic, signedIn]
+    [applyOptimistic, baseThreads, optimisticThreads, signedIn]
   );
 
   const setThreadDuration = useCallback(
     (threadId: string, duration: number | undefined) => {
+      const t = baseThreads[threadId] ?? optimisticThreads[threadId];
+      if (!t) return;
+      const thread = { ...t, duration, updatedAt: Date.now() };
+      startTransition(() => applyOptimistic({ type: "upsert", thread }));
       setBaseThreads((prev) => {
-        const t = prev[threadId];
-        if (!t) return prev;
-        const thread = { ...t, duration, updatedAt: Date.now() };
-        startTransition(() => applyOptimistic({ type: "upsert", thread }));
         const next = { ...prev, [threadId]: thread };
         saveLocalThreads(next);
-        if (signedIn) {
-          void patchThreadOnApi(threadId, {
-            duration: duration ?? null,
-          }).catch(() => toast.error("Failed to sync duration"));
-        }
         return next;
       });
+      if (signedIn) {
+        void patchThreadOnApi(threadId, {
+          duration: duration ?? null,
+        }).catch(() => toast.error("Failed to sync duration"));
+      }
     },
-    [applyOptimistic, signedIn]
+    [applyOptimistic, baseThreads, optimisticThreads, signedIn]
   );
 
   const startLectureRender = useCallback(
@@ -437,7 +438,14 @@ export function ChalkboardProvider({ children }: { children: ReactNode }) {
       opts?: { duration?: number }
     ) => {
       const override = promptOverride?.trim();
-      if (override) setThreadPrompt(threadId, override);
+      if (override) {
+        const check = validatePrompt(override);
+        if (!check.ok) {
+          toast.error(check.error ?? "Invalid topic");
+          return;
+        }
+        setThreadPrompt(threadId, check.prompt);
+      }
 
       // Prefer live base state; fall back to optimistic view
       const live = baseThreads[threadId] ?? getThread(threadId);
@@ -445,12 +453,13 @@ export function ChalkboardProvider({ children }: { children: ReactNode }) {
         override ||
         [...(live?.messages ?? [])].reverse().find((m) => m.role === "user")
           ?.content;
-      if (!live || !userContent?.trim()) {
-        toast.error("Add a lecture topic first");
+      const check = validatePrompt(userContent ?? "");
+      if (!live || !check.ok) {
+        toast.error(check.error ?? "Add a lecture topic first");
         return;
       }
 
-      const messages = [{ role: "user" as const, content: userContent.trim() }];
+      const messages = [{ role: "user" as const, content: check.prompt }];
       const model = live.model;
       const duration =
         opts && "duration" in opts ? opts.duration : live.duration;
@@ -463,16 +472,18 @@ export function ChalkboardProvider({ children }: { children: ReactNode }) {
         status: "queued",
       };
 
+      const th = baseThreads[threadId] ?? getThread(threadId);
+      if (!th) return;
+      const threadWithVideo = {
+        ...th,
+        videos: [placeholder, ...th.videos],
+        updatedAt: Date.now(),
+      };
+      startTransition(() =>
+        applyOptimistic({ type: "upsert", thread: threadWithVideo })
+      );
       setBaseThreads((prev) => {
-        const th = prev[threadId];
-        if (!th) return prev;
-        const thread = {
-          ...th,
-          videos: [placeholder, ...th.videos],
-          updatedAt: Date.now(),
-        };
-        startTransition(() => applyOptimistic({ type: "upsert", thread }));
-        const next = { ...prev, [threadId]: thread };
+        const next = { ...prev, [threadId]: threadWithVideo };
         saveLocalThreads(next);
         return next;
       });

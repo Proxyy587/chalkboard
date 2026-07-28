@@ -29,7 +29,7 @@ export default function DocsRootLayout({ children }: { children: ReactNode }) {
             className="inline-flex items-center gap-1.5 text-[12px] text-[var(--muted-text)] transition-colors hover:text-foreground"
           >
             <ArrowLeft className="size-3.5" strokeWidth={1.5} />
-            Back
+            Home
           </Link>
           <span className="hidden h-3 w-px bg-border sm:block" />
           <Link href="/docs" className="mm-brand truncate text-[13px]">
@@ -40,6 +40,12 @@ export default function DocsRootLayout({ children }: { children: ReactNode }) {
           </span>
         </div>
         <nav className="flex items-center gap-2 sm:gap-3">
+          <Link
+            href="/docs"
+            className="text-[12px] text-[var(--muted-text)] transition-colors hover:text-foreground sm:hidden"
+          >
+            Docs
+          </Link>
           <Link
             href="/docs/quickstart"
             className="hidden text-[12px] text-[var(--muted-text)] transition-colors hover:text-foreground sm:inline"
@@ -60,7 +66,7 @@ export default function DocsRootLayout({ children }: { children: ReactNode }) {
           </Link>
           <Link
             href="/settings/api-keys"
-            className="hidden text-[12px] text-[var(--muted-text)] transition-colors hover:text-foreground sm:inline"
+            className="text-[12px] text-[var(--muted-text)] transition-colors hover:text-foreground"
           >
             Get key
           </Link>

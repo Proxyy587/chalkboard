@@ -8,7 +8,13 @@ import { useChalkboard } from "@/components/chalkboard/chalkboard-context";
 import { ModelSelector } from "@/components/chalkboard/model-selector";
 import { NavigateHome } from "@/components/chalkboard/navigate-home";
 import { getModelLabel, setPreferredModel } from "@/lib/chalkboard-api";
+import {
+  PROMPT_MAX_LENGTH,
+  PROMPT_MIN_LENGTH,
+  validatePrompt,
+} from "@/lib/prompt";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 export default function ThreadPage() {
   const params = useParams();
@@ -44,7 +50,7 @@ export default function ThreadPage() {
   }
 
   const dirty = draft.trim() !== prompt.trim();
-  const canGenerate = Boolean(draft.trim());
+  const canGenerate = draft.trim().length >= PROMPT_MIN_LENGTH;
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col lg:flex-row">
@@ -56,7 +62,9 @@ export default function ThreadPage() {
       >
         <div className="shrink-0 border-b border-[var(--chip-line)] px-4 py-3">
           <p className="mm-label">Prompt</p>
-          <p className="mt-1 truncate text-[13px] text-[var(--ink-soft)]">{thread.title}</p>
+          <h1 className="mt-1 truncate text-[15px] font-semibold tracking-tight text-foreground">
+            {thread.title}
+          </h1>
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
@@ -67,16 +75,31 @@ export default function ThreadPage() {
             <textarea
               id="thread-prompt"
               value={draft}
+              maxLength={PROMPT_MAX_LENGTH}
               onChange={(e) => setDraft(e.target.value)}
               rows={8}
               className="lime-focus min-h-[140px] flex-1 resize-none rounded-[10px] border border-[var(--chip-line)] bg-[var(--surface)] px-3 py-3 text-[13px] leading-relaxed text-foreground placeholder:text-[var(--muted-2)]"
               placeholder="Describe the lecture…"
             />
+            <p className="mt-1.5 text-[11px] tabular-nums text-[var(--muted-2)]">
+              {draft.trim().length}/{PROMPT_MAX_LENGTH}
+              {draft.trim().length > 0 &&
+                draft.trim().length < PROMPT_MIN_LENGTH &&
+                ` · min ${PROMPT_MIN_LENGTH}`}
+            </p>
             {dirty && (
               <button
                 type="button"
                 className="mm-ghost-btn mt-2 self-start px-3 py-1.5 text-[10px]"
-                onClick={() => setThreadPrompt(id, draft)}
+                disabled={!validatePrompt(draft).ok}
+                onClick={() => {
+                  const check = validatePrompt(draft);
+                  if (!check.ok) {
+                    toast.error(check.error);
+                    return;
+                  }
+                  setThreadPrompt(id, check.prompt);
+                }}
               >
                 Save prompt
               </button>

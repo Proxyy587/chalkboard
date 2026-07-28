@@ -2,17 +2,26 @@ import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 import { DocsToc } from "@/components/docs/docs-toc";
+import { CopyDocsForAi } from "@/components/docs/copy-docs-for-ai";
 
 export function DocShell({
   children,
   toc = [],
+  pageTitle,
 }: {
   children: ReactNode;
   toc?: { id: string; label: string }[];
+  /** Used by “Copy for AI” clipboard header */
+  pageTitle?: string;
 }) {
   return (
     <div className="mx-auto flex w-full max-w-5xl gap-10 px-5 py-8 md:px-8 md:py-10">
-      <div className="min-w-0 flex-1">{children}</div>
+      <div className="min-w-0 flex-1">
+        <div className="mb-4 flex justify-end">
+          <CopyDocsForAi pageTitle={pageTitle} />
+        </div>
+        <div data-doc-content>{children}</div>
+      </div>
       <aside className="hidden w-[180px] shrink-0 lg:block">
         <DocsToc items={toc} />
       </aside>

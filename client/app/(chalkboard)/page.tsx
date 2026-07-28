@@ -4,6 +4,7 @@ import { ArrowUpRight, BookOpen } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import { useChalkboard } from "@/components/chalkboard/chalkboard-context";
 import { ModelSelector } from "@/components/chalkboard/model-selector";
@@ -19,6 +20,11 @@ import {
   setPreferredDuration,
   setPreferredModel,
 } from "@/lib/chalkboard-api";
+import {
+  PROMPT_MAX_LENGTH,
+  PROMPT_MIN_LENGTH,
+  validatePrompt,
+} from "@/lib/prompt";
 import "@/app/landing.css";
 
 const DEMO_PROMPTS = [
@@ -98,12 +104,16 @@ export default function LandingPage() {
 
   const submit = useCallback(
     (text: string) => {
-      const prompt = text.trim();
-      if (!prompt || busy) return;
+      const check = validatePrompt(text);
+      if (!check.ok) {
+        toast.error(check.error ?? "Invalid topic");
+        return;
+      }
+      if (busy) return;
       setBusy(true);
       setPreferredModel(model);
       setPreferredDuration(duration);
-      const id = createThreadFromPrompt(prompt, { model, duration });
+      const id = createThreadFromPrompt(check.prompt, { model, duration });
       setValue("");
       router.push(`/thread/${id}`);
     },
@@ -120,21 +130,23 @@ export default function LandingPage() {
 
   return (
     <div ref={setRootEl} className="lp-root">
-      <div className={`lp-corner ${scrolled ? "hide" : ""}`}>
-        <span>v0.1</span>
-        {!session?.user && <HistoryMenu />}
-        <ThemeToggle />
-      </div>
+      {!scrolled && (
+        <div className="lp-corner">
+          <span>v0.1</span>
+          {!session?.user && <HistoryMenu />}
+          <ThemeToggle />
+        </div>
+      )}
 
       <header className={`lp-topbar ${scrolled ? "show" : ""}`}>
         <Link href="/" className="brand">
           manimotion
         </Link>
         <div className="spacer" />
-        <Link href="/docs" className="lp-topbar-link desktop-only">
+        <Link href="/docs" className="lp-topbar-link">
           Docs
         </Link>
-        <Link href="/settings" className="lp-topbar-link desktop-only">
+        <Link href="/settings" className="lp-topbar-link">
           Settings
         </Link>
         {session?.user ? (
@@ -148,7 +160,7 @@ export default function LandingPage() {
           </>
         )}
         <span className="ver">v0.1</span>
-        <ThemeToggle />
+        {scrolled && <ThemeToggle />}
       </header>
 
       <section className="lp-hero">
@@ -212,6 +224,7 @@ export default function LandingPage() {
               <textarea
                 id="landing-input"
                 value={value}
+                maxLength={PROMPT_MAX_LENGTH}
                 onChange={(e) => setValue(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
@@ -221,6 +234,7 @@ export default function LandingPage() {
                 }}
                 placeholder="What should we teach?"
                 rows={4}
+                aria-label="Lecture topic"
               />
               <div className="lp-composer-bar">
                 {prefsReady ? (
@@ -237,25 +251,46 @@ export default function LandingPage() {
                     }}
                   />
                 ) : (
-                  <div className="h-8 w-40 animate-pulse rounded bg-[var(--lp-line-soft)]" />
+                  <div
+                    className="flex h-8 items-center text-[12px] text-[var(--lp-muted-2)]"
+                    aria-busy="true"
+                  >
+                    Loading models…
+                  </div>
                 )}
-                <button
-                  type="button"
-                  className="lp-btn primary"
-                  disabled={!value.trim() || busy}
-                  onClick={() => submit(value)}
-                  style={{ opacity: !value.trim() || busy ? 0.4 : 1 }}
-                >
-                  Generate
-                  <ArrowUpRight className="size-3.5" strokeWidth={1.75} />
-                </button>
+                <div className="flex flex-1 items-center justify-end gap-3">
+                  <span className="text-[11px] tabular-nums text-[var(--lp-muted-2)]">
+                    {value.trim().length}/{PROMPT_MAX_LENGTH}
+                  </span>
+                  <button
+                    type="button"
+                    className="lp-btn primary"
+                    disabled={
+                      !prefsReady ||
+                      value.trim().length < PROMPT_MIN_LENGTH ||
+                      busy
+                    }
+                    onClick={() => submit(value)}
+                    style={{
+                      opacity:
+                        !prefsReady ||
+                        value.trim().length < PROMPT_MIN_LENGTH ||
+                        busy
+                          ? 0.4
+                          : 1,
+                    }}
+                  >
+                    Generate
+                    <ArrowUpRight className="size-3.5" strokeWidth={1.75} />
+                  </button>
+                </div>
               </div>
             </div>
           </section>
 
           <section id="starters">
             <h2>Try a starter</h2>
-            <p>One click. Same pipeline as a blank prompt.</p>
+            <p>Opens a ready-to-generate draft with the same pipeline.</p>
             <div className="lp-starters">
               {DEMO_PROMPTS.map((item) => (
                 <button

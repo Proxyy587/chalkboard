@@ -6,9 +6,9 @@ export default function SettingsOverviewPage() {
     <div className="space-y-8">
       <header>
         <p className="mm-label">Overview</p>
-        <h2 className="mt-1 text-[1.35rem] font-bold tracking-[-0.02em] text-foreground">
+        <h1 className="mt-1 text-[1.35rem] font-bold tracking-[-0.02em] text-foreground">
           Production setup
-        </h2>
+        </h1>
         <p className="mt-2 max-w-lg text-[13px] leading-relaxed text-[var(--muted-text)]">
           The home demo works without an account. Wire keys and storage when you
           call the worker from your own apps.

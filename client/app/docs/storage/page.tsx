@@ -46,7 +46,7 @@ const TOC = [
 
 export default function DocsStoragePage() {
   return (
-    <DocShell toc={TOC}>
+    <DocShell toc={TOC} pageTitle="Storage">
       <JsonLd
         data={docsJsonLd({
           title: "Storage",

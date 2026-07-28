@@ -45,7 +45,7 @@ const TOC = [
 
 export default function DocsQuickstartPage() {
   return (
-    <DocShell toc={TOC}>
+    <DocShell toc={TOC} pageTitle="Quickstart">
       <JsonLd
         data={docsJsonLd({
           title: "Quickstart",

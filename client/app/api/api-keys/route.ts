@@ -64,6 +64,20 @@ export async function POST(req: Request) {
     return jsonError("Invalid request body", 400);
   }
 
+  const name = input.name.trim();
+  const duplicate = await db.apiKey.findFirst({
+    where: {
+      userId: user.id,
+      isActive: true,
+      revokedAt: null,
+      name: { equals: name, mode: "insensitive" },
+    },
+    select: { id: true },
+  });
+  if (duplicate) {
+    return jsonError("You already have an API key with this name.", 400);
+  }
+
   const { fullKey, prefix, hash } = generateApiKey(input.environment);
 
   const { isOwnerEmail } = await import("@/lib/quota");
@@ -72,7 +86,7 @@ export async function POST(req: Request) {
   const apiKey = await db.apiKey.create({
     data: {
       userId: user.id,
-      name: input.name,
+      name,
       prefix,
       keyHash: hash,
       type: input.type,

@@ -9,6 +9,25 @@ export function unauthorized(message = "Unauthorized") {
   return jsonError(message, 401);
 }
 
+/** Human-readable Zod / validation errors (no raw Zod dump). */
+export function formatZodError(err: unknown): string {
+  if (err instanceof z.ZodError) {
+    const first = err.issues[0];
+    if (!first) return "Invalid request";
+    const path = first.path.filter(Boolean).join(".");
+    const field = path || "input";
+    if (first.code === "invalid_string" && first.validation === "url") {
+      return `Invalid URL for ${field}. Use a full URL like https://…`;
+    }
+    if (first.code === "too_small") {
+      return `${field} is required.`;
+    }
+    return path ? `${field}: ${first.message}` : first.message;
+  }
+  if (err instanceof Error) return err.message;
+  return "Invalid request";
+}
+
 export const createKeySchema = z.object({
   name: z.string().min(1).max(100),
   environment: z.enum(["live", "test"]).default("live"),

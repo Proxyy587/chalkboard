@@ -43,7 +43,7 @@ const TOC = [
 
 export default function DocsIntroPage() {
   return (
-    <DocShell toc={TOC}>
+    <DocShell toc={TOC} pageTitle="Introduction">
       <JsonLd
         data={docsJsonLd({
           title: "Introduction",
