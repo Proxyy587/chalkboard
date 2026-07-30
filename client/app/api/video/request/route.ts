@@ -1,21 +1,25 @@
 import { NextResponse } from "next/server";
 
-import { getChalkboardApiBase } from "@/lib/chalkboard-api";
 import { getSession } from "@/lib/auth/session";
+import { db } from "@/lib/db";
 import {
-  checkAccountRenderQuota,
-  checkGuestQuota,
   clientIp,
-  consumeAccountRender,
-  consumeGuestQuota,
   isOwnerEmail,
+  refundAccountRender,
+  refundGuestQuota,
+  tryConsumeAccountRender,
+  tryConsumeGuestQuota,
 } from "@/lib/quota";
 import type { VideoRequestBody } from "@/lib/video-api";
+import {
+  getChalkboardApiBase,
+  isModelAllowedForPlan,
+} from "@/lib/chalkboard-api";
 
 /**
  * Proxy to the Python video worker with quota enforcement.
  *
- * - Guest: 1 video / IP lifetime
+ * - Guest: 1 video / IP lifetime (atomic consume-before-proxy)
  * - Free account: 3 / UTC day
  * - Hobby/Pro: monthly renderCredits (Dodo)
  * - Owner email / master key: unlimited
@@ -44,19 +48,39 @@ export async function POST(req: Request) {
 
   const ownerByEmail = isOwnerEmail(user?.email);
 
+  // Session / guest browser path — gate LLM by plan (API keys enforced on worker).
+  if (!isUserKey && !isMasterKey && !incoming && body.model?.trim()) {
+    let plan = "FREE";
+    if (user && !ownerByEmail) {
+      const row = await db.user.findUnique({
+        where: { id: user.id },
+        select: { plan: true },
+      });
+      plan = row?.plan ?? "FREE";
+    } else if (ownerByEmail) {
+      plan = "PRO";
+    }
+    if (!isModelAllowedForPlan(body.model.trim(), plan)) {
+      return NextResponse.json(
+        {
+          error:
+            "That model requires a higher plan. Upgrade on /pricing for Sonnet/Opus-class models.",
+        },
+        { status: 403 }
+      );
+    }
+  }
+
   let apiKey = "";
-  let consume: "guest" | "account" | null = null;
+  let consumed: "guest" | "account" | null = null;
   let accountMode: "daily" | "monthly" | "unlimited" = "daily";
 
   if (isUserKey) {
     apiKey = incoming;
-    consume = null;
   } else if (isMasterKey) {
     apiKey = master;
-    consume = null;
   } else if (incoming && !isUserKey && !isMasterKey) {
     apiKey = incoming;
-    consume = null;
   } else {
     if (!master) {
       return NextResponse.json(
@@ -70,16 +94,16 @@ export async function POST(req: Request) {
     apiKey = master;
 
     if (!user) {
-      const q = await checkGuestQuota(ip);
+      const q = await tryConsumeGuestQuota(ip);
       if (!q.ok) {
         return NextResponse.json(
           { error: q.error, remaining: 0, limit: q.limit },
           { status: 429 }
         );
       }
-      consume = "guest";
+      consumed = "guest";
     } else {
-      const q = await checkAccountRenderQuota(user.id, {
+      const q = await tryConsumeAccountRender(user.id, {
         ownerEmail: ownerByEmail,
       });
       if (!q.ok) {
@@ -89,11 +113,32 @@ export async function POST(req: Request) {
         );
       }
       accountMode = q.mode;
-      consume = q.mode === "unlimited" ? null : "account";
+      consumed = q.mode === "unlimited" ? null : "account";
     }
   }
 
   const base = getChalkboardApiBase();
+  // Session/guest demos use the master key — pin free-tier quality unless paid/owner.
+  let proxyBody: VideoRequestBody = { ...body };
+  if (!isUserKey && !isMasterKey && !incoming) {
+    let plan = "FREE";
+    if (user && !ownerByEmail) {
+      const row = await db.user.findUnique({
+        where: { id: user.id },
+        select: { plan: true },
+      });
+      plan = (row?.plan ?? "FREE").toUpperCase();
+    } else if (ownerByEmail) {
+      plan = "PRO";
+    }
+    const paid = plan === "HOBBY" || plan === "PRO" || plan === "OWNER";
+    proxyBody = {
+      ...body,
+      watermark: !paid,
+      max_height: paid ? 1080 : 720,
+    };
+  }
+
   let res: Response;
   try {
     res = await fetch(`${base}/video/request`, {
@@ -102,9 +147,13 @@ export async function POST(req: Request) {
         "Content-Type": "application/json",
         "x-api-key": apiKey,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(proxyBody),
     });
   } catch {
+    if (consumed === "guest") await refundGuestQuota(ip).catch(() => {});
+    if (consumed === "account" && user) {
+      await refundAccountRender(user.id, accountMode).catch(() => {});
+    }
     return NextResponse.json(
       { error: "Video service unreachable. Try again in a moment." },
       { status: 502 }
@@ -113,14 +162,10 @@ export async function POST(req: Request) {
 
   const data = await res.json().catch(() => ({}));
 
-  if (res.ok) {
-    try {
-      if (consume === "guest") await consumeGuestQuota(ip);
-      if (consume === "account" && user) {
-        await consumeAccountRender(user.id, accountMode);
-      }
-    } catch {
-      /* don't fail accepted jobs on quota write races */
+  if (!res.ok) {
+    if (consumed === "guest") await refundGuestQuota(ip).catch(() => {});
+    if (consumed === "account" && user) {
+      await refundAccountRender(user.id, accountMode).catch(() => {});
     }
   }
 

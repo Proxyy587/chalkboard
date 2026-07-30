@@ -1,6 +1,6 @@
 /**
- * manimotion pricing — sell renders, not opaque credits.
- * Tuned for a bootstrapped launch (tight free tier, clear paid upgrades).
+ * manimotion pricing — sell renders; differentiate with LLM quality.
+ * Bootstrapped: Free API allowed; Pro = Opus-tier models, ~80 renders/mo.
  */
 
 export type PlanId = "FREE" | "HOBBY" | "PRO";
@@ -9,20 +9,17 @@ export type PlanDefinition = {
   id: PlanId;
   name: string;
   priceLabel: string;
-  /** Monthly USD for paid plans; 0 for free */
   priceUsd: number;
   blurb: string;
-  /** Soft marketing number shown on pricing page */
   rendersLabel: string;
-  /** Monthly render allowance for paid; free uses daily quota instead */
   monthlyRenders: number | null;
-  /** Free-tier daily cap (UTC day) */
   dailyRenders: number | null;
   maxResolution: "720p" | "1080p";
   watermark: boolean;
   apiAccess: boolean;
+  /** Models unlocked on this plan (and below). */
+  modelTier: string;
   features: string[];
-  /** Set after creating products in Dodo dashboard */
   dodoProductIdEnv: string;
   highlighted?: boolean;
 };
@@ -33,20 +30,21 @@ export const PLANS: PlanDefinition[] = [
     name: "Free",
     priceLabel: "$0",
     priceUsd: 0,
-    blurb: "Try the pipeline. Enough to decide if it fits.",
+    blurb: "Try the pipeline. API included — solid open models.",
     rendersLabel: "3 renders / day",
     monthlyRenders: null,
     dailyRenders: 3,
     maxResolution: "720p",
     watermark: true,
-    apiAccess: false,
+    apiAccess: true,
+    modelTier: "Fast models (DeepSeek, Gemini Flash)",
     dodoProductIdEnv: "",
     features: [
-      "3 renders per day",
-      "720p output",
-      "Watermarked MP4",
+      "3 renders / day",
+      "API access (chalk_* keys)",
+      "Fast open models",
+      "720p · watermark",
       "Low queue priority",
-      "Website demo",
     ],
   },
   {
@@ -54,21 +52,22 @@ export const PLANS: PlanDefinition[] = [
     name: "Hobby",
     priceLabel: "$9",
     priceUsd: 9,
-    blurb: "For tutors and makers shipping explainers weekly.",
-    rendersLabel: "80 renders / month",
-    monthlyRenders: 80,
+    blurb: "Stronger models for tutors and weekly explainers.",
+    rendersLabel: "40 renders / month",
+    monthlyRenders: 40,
     dailyRenders: null,
     maxResolution: "1080p",
     watermark: false,
-    apiAccess: false,
+    apiAccess: true,
+    modelTier: "GPT-4o · Claude Sonnet",
     dodoProductIdEnv: "DODO_PRODUCT_HOBBY",
     highlighted: true,
     features: [
-      "80 renders / month",
-      "1080p, no watermark",
-      "Faster queue",
-      "Commercial use",
-      "Save storage integrations",
+      "40 renders / month",
+      "GPT-4o & Claude Sonnet",
+      "1080p · no watermark",
+      "API access",
+      "Faster queue · commercial use",
     ],
   },
   {
@@ -76,20 +75,21 @@ export const PLANS: PlanDefinition[] = [
     name: "Pro",
     priceLabel: "$19",
     priceUsd: 19,
-    blurb: "For products and APIs. More volume, more control.",
-    rendersLabel: "400 renders / month",
-    monthlyRenders: 400,
+    blurb: "Best lecture quality. Opus-class models for shipping products.",
+    rendersLabel: "80 renders / month",
+    monthlyRenders: 80,
     dailyRenders: null,
     maxResolution: "1080p",
     watermark: false,
     apiAccess: true,
+    modelTier: "Claude Opus · top-tier models",
     dodoProductIdEnv: "DODO_PRODUCT_PRO",
     features: [
-      "400 renders / month",
-      "API access (chalk_* keys)",
-      "Higher concurrency",
-      "Longer videos",
-      "Priority support",
+      "80 renders / month",
+      "Claude Opus & top-tier models",
+      "Everything in Hobby",
+      "Priority queue",
+      "Longer videos · higher concurrency",
     ],
   },
 ];
@@ -105,7 +105,6 @@ export function productIdForPlan(plan: PlanId): string | null {
   return id || null;
 }
 
-/** Map Dodo product id → our plan */
 export function planFromDodoProductId(productId: string): PlanId | null {
   for (const p of PLANS) {
     if (!p.dodoProductIdEnv) continue;
@@ -113,4 +112,20 @@ export function planFromDodoProductId(productId: string): PlanId | null {
     if (envId && envId === productId) return p.id;
   }
   return null;
+}
+
+/** Rank for comparing plan unlocks */
+export const PLAN_RANK: Record<PlanId, number> = {
+  FREE: 0,
+  HOBBY: 1,
+  PRO: 2,
+};
+
+export function planAtLeast(
+  userPlan: string | null | undefined,
+  required: PlanId
+): boolean {
+  const u = (userPlan?.toUpperCase() ?? "FREE") as PlanId;
+  const userRank = PLAN_RANK[u] ?? 0;
+  return userRank >= PLAN_RANK[required];
 }

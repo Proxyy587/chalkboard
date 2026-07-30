@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 
 import { SocialAuthButtons } from "@/components/auth/social-auth-buttons";
 import { ThemeToggle } from "@/components/theme/theme-provider";
 import { signIn, signUp } from "@/lib/auth-client";
+import { safeNextPath } from "@/lib/auth/redirect";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,8 +16,11 @@ import { cn } from "@/lib/utils";
 
 type Mode = "sign-in" | "sign-up";
 
-export function AuthCard({ initialMode = "sign-in" }: { initialMode?: Mode }) {
+function AuthCardInner({ initialMode = "sign-in" }: { initialMode?: Mode }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextPath = safeNextPath(searchParams.get("next"), "/settings");
+
   const [mode, setMode] = useState<Mode>(initialMode);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -31,11 +35,15 @@ export function AuthCard({ initialMode = "sign-in" }: { initialMode?: Mode }) {
     setLoading(true);
     setError(null);
 
+    // better-auth: shorter session when Remember me is off
+    const callbackURL = nextPath;
+
     if (mode === "sign-in") {
       const { error: err } = await signIn.email({
         email: email.trim(),
         password,
-        callbackURL: "/settings",
+        callbackURL,
+        ...(remember ? {} : { rememberMe: false }),
       });
       setLoading(false);
       if (err) {
@@ -47,7 +55,7 @@ export function AuthCard({ initialMode = "sign-in" }: { initialMode?: Mode }) {
         name: name.trim() || email.split("@")[0],
         email: email.trim(),
         password,
-        callbackURL: "/settings",
+        callbackURL,
       });
       setLoading(false);
       if (err) {
@@ -56,7 +64,7 @@ export function AuthCard({ initialMode = "sign-in" }: { initialMode?: Mode }) {
       }
     }
 
-    router.push("/settings");
+    router.push(nextPath);
     router.refresh();
   }
 
@@ -87,13 +95,17 @@ export function AuthCard({ initialMode = "sign-in" }: { initialMode?: Mode }) {
               onClick={() => {
                 setMode(tab.id);
                 setError(null);
-                window.history.replaceState(null, "", tab.href);
+                const q = searchParams.get("next");
+                const href = q
+                  ? `${tab.href}?next=${encodeURIComponent(q)}`
+                  : tab.href;
+                window.history.replaceState(null, "", href);
               }}
               className={cn(
                 "flex-1 px-4 py-3 text-[13px] font-medium transition-colors",
                 mode === tab.id
                   ? "border-b-2 border-foreground text-foreground"
-                  : "text-[var(--muted-text)] hover:text-[var(--ink-soft)]"
+                  : "text-[var(--muted-text)] hover:text-[var(--ink-soft)]",
               )}
             >
               {tab.label}
@@ -144,8 +156,11 @@ export function AuthCard({ initialMode = "sign-in" }: { initialMode?: Mode }) {
               <div className="flex items-center justify-between">
                 <Label htmlFor="password">Password</Label>
                 {mode === "sign-in" && (
-                  <span className="text-[12px] text-[var(--muted-text)]">
-                    Forgot your password?
+                  <span
+                    className="text-[12px] text-[var(--muted-2)]"
+                    title="Email password reset is not wired yet"
+                  >
+                    Reset coming soon
                   </span>
                 )}
               </div>
@@ -186,7 +201,7 @@ export function AuthCard({ initialMode = "sign-in" }: { initialMode?: Mode }) {
                   onChange={(e) => setRemember(e.target.checked)}
                   className="size-3.5 rounded-[4px] border border-[var(--chip-line)] accent-[var(--ink)]"
                 />
-                Remember me
+                Remember me for 7 days
               </label>
             )}
 
@@ -203,7 +218,7 @@ export function AuthCard({ initialMode = "sign-in" }: { initialMode?: Mode }) {
             </Button>
           </form>
 
-          <SocialAuthButtons callbackURL="/settings" />
+          <SocialAuthButtons callbackURL={nextPath} />
 
           <p className="text-center text-[11px] leading-relaxed text-[var(--muted-2)]">
             By continuing, you agree to the Terms of Service and Privacy Policy.
@@ -217,5 +232,19 @@ export function AuthCard({ initialMode = "sign-in" }: { initialMode?: Mode }) {
         </Link>
       </p>
     </div>
+  );
+}
+
+export function AuthCard({ initialMode = "sign-in" }: { initialMode?: Mode }) {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-dvh items-center justify-center bg-background text-[13px] text-[var(--muted-2)]">
+          Loading…
+        </div>
+      }
+    >
+      <AuthCardInner initialMode={initialMode} />
+    </Suspense>
   );
 }

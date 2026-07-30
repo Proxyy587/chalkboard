@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { readJsonSafe } from "@/lib/http";
 import { useSession } from "@/lib/auth-client";
 import type { PlanId } from "@/lib/billing/plans";
 
@@ -39,12 +40,20 @@ export function PricingActions({
     try {
       const res = await fetch("/api/billing/checkout", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ plan: planId }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Checkout failed");
-      const url = data.checkout_url as string | undefined;
+      const data = await readJsonSafe(res);
+      if (!res.ok) {
+        throw new Error(
+          (typeof data.error === "string" && data.error) ||
+            `Checkout failed (${res.status})`
+        );
+      }
+      const url =
+        (typeof data.checkout_url === "string" && data.checkout_url) ||
+        undefined;
       if (!url) throw new Error("No checkout URL returned");
       window.location.href = url;
     } catch (e) {
@@ -64,7 +73,9 @@ export function PricingActions({
           : "mm-ghost-btn flex h-10 w-full items-center justify-center text-[13px] disabled:opacity-50"
       }
     >
-      {loading ? "Redirecting…" : `Upgrade to ${planId === "HOBBY" ? "Hobby" : "Pro"}`}
+      {loading
+        ? "Redirecting…"
+        : `Upgrade to ${planId === "HOBBY" ? "Hobby" : "Pro"}`}
     </button>
   );
 }

@@ -26,7 +26,7 @@ export async function activatePlanForUser(opts: {
     },
   });
 
-  // Align chalk_* keys with website plan (FREE stays FREE; paid → PRO for API)
+  // Align chalk_* keys with website plan
   if (opts.plan === "PRO" || opts.plan === "HOBBY") {
     await db.apiKey.updateMany({
       where: { userId: opts.userId, isActive: true, revokedAt: null },

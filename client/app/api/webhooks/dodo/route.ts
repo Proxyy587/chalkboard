@@ -1,5 +1,7 @@
-import { createWebhookHandler } from "@/lib/billing/dodo";
+import { NextResponse } from "next/server";
+
 import { planFromDodoProductId } from "@/lib/billing/plans";
+import { createWebhookHandler } from "@/lib/billing/dodo";
 import {
   activatePlanForUser,
   downgradeToFree,
@@ -60,10 +62,28 @@ async function onCancel(payload: unknown, status: string) {
   await downgradeToFree(userId, status);
 }
 
-export const POST = createWebhookHandler({
-  onSubscriptionActive: (p) => onPaid(p, "active"),
-  onSubscriptionRenewed: (p) => onPaid(p, "active"),
-  onSubscriptionCancelled: (p) => onCancel(p, "cancelled"),
-  onSubscriptionExpired: (p) => onCancel(p, "expired"),
-  onSubscriptionFailed: (p) => onCancel(p, "failed"),
-});
+export async function POST(req: Request) {
+  if (!process.env.DODO_PAYMENTS_WEBHOOK_KEY?.trim()) {
+    return NextResponse.json(
+      { error: "Webhook not configured" },
+      { status: 503 }
+    );
+  }
+  try {
+    const handler = createWebhookHandler({
+      onSubscriptionActive: (p) => onPaid(p, "active"),
+      onSubscriptionRenewed: (p) => onPaid(p, "active"),
+      onSubscriptionCancelled: (p) => onCancel(p, "cancelled"),
+      onSubscriptionExpired: (p) => onCancel(p, "expired"),
+      onSubscriptionFailed: (p) => onCancel(p, "failed"),
+    });
+    // @dodopayments/nextjs Webhooks() returns a route handler
+    return handler(req);
+  } catch (e) {
+    console.error("[dodo webhook]", e);
+    return NextResponse.json(
+      { error: "Webhook handler failed to initialize" },
+      { status: 503 }
+    );
+  }
+}

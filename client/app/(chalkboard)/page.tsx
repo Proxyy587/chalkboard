@@ -6,10 +6,11 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import { AccountMenu, HistoryMenu } from "@/components/account/account-menu";
 import { useChalkboard } from "@/components/chalkboard/chalkboard-context";
 import { ModelSelector } from "@/components/chalkboard/model-selector";
-import { AccountMenu, HistoryMenu } from "@/components/account/account-menu";
 import { LandingMark } from "@/components/landing/landing-mark";
+import { SiteHeader } from "@/components/layout/site-header";
 import { ThemeToggle } from "@/components/theme/theme-provider";
 import { useSession } from "@/lib/auth-client";
 import { useMountEffect } from "@/hooks/use-mount-effect";
@@ -134,34 +135,12 @@ export default function LandingPage() {
         <div className="lp-corner">
           <span>v0.1</span>
           {!session?.user && <HistoryMenu />}
+          {session?.user ? <AccountMenu /> : null}
           <ThemeToggle />
         </div>
       )}
 
-      <header className={`lp-topbar ${scrolled ? "show" : ""}`}>
-        <Link href="/" className="brand">
-          manimotion
-        </Link>
-        <div className="spacer" />
-        <Link href="/docs" className="lp-topbar-link">
-          Docs
-        </Link>
-        <Link href="/settings" className="lp-topbar-link">
-          Settings
-        </Link>
-        {session?.user ? (
-          <AccountMenu />
-        ) : (
-          <>
-            <HistoryMenu />
-            <Link href="/sign-in" className="lp-topbar-link">
-              Sign in
-            </Link>
-          </>
-        )}
-        <span className="ver">v0.1</span>
-        {scrolled && <ThemeToggle />}
-      </header>
+      <SiteHeader section="home" reveal revealed={scrolled} />
 
       <section className="lp-hero">
         <h1 className="lp-wordmark">manimotion</h1>
@@ -364,6 +343,8 @@ export default function LandingPage() {
         <footer className="lp-foot">
           <div>
             <Link href="/docs">Docs</Link>
+            {" · "}
+            <Link href="/pricing">Pricing</Link>
             {" · "}
             <Link href="/settings">Settings</Link>
             {" · "}

@@ -5,7 +5,10 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { History, LogOut, Settings, Trash2 } from "lucide-react";
 
-import { useChalkboard } from "@/components/chalkboard/chalkboard-context";
+import {
+  useChalkboard,
+  useOptionalChalkboard,
+} from "@/components/chalkboard/chalkboard-context";
 import { signOut, useSession } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import {
@@ -35,7 +38,10 @@ export function AccountMenu({
   const pathname = usePathname();
   const router = useRouter();
   const { data: session } = useSession();
-  const { threadIdsSorted, threadsById, deleteThread } = useChalkboard();
+  const chalkboard = useOptionalChalkboard();
+  const threadIdsSorted = chalkboard?.threadIdsSorted ?? [];
+  const threadsById = chalkboard?.threadsById ?? {};
+  const deleteThread = chalkboard?.deleteThread;
   const [open, setOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<{
     id: string;
@@ -207,7 +213,7 @@ export function AccountMenu({
               className="bg-red-500/15 text-red-500 hover:bg-red-500/25"
               onClick={() => {
                 if (!pendingDelete) return;
-                deleteThread(pendingDelete.id);
+                deleteThread?.(pendingDelete.id);
                 if (pendingDelete.active) router.push("/");
                 setPendingDelete(null);
                 setOpen(false);
@@ -356,7 +362,7 @@ export function HistoryMenu({
               className="bg-red-500/15 text-red-500 hover:bg-red-500/25"
               onClick={() => {
                 if (!pendingDelete) return;
-                deleteThread(pendingDelete.id);
+                deleteThread?.(pendingDelete.id);
                 if (pendingDelete.active) router.push("/");
                 setPendingDelete(null);
                 setOpen(false);

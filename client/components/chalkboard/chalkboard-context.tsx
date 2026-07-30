@@ -599,3 +599,8 @@ export function useChalkboard() {
   }
   return ctx;
 }
+
+/** Safe for SiteHeader on docs/pricing (outside chalkboard layout). */
+export function useOptionalChalkboard() {
+  return useContext(ChalkboardContext);
+}

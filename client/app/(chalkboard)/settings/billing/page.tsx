@@ -7,6 +7,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { getPlan } from "@/lib/billing/plans";
+import { readJsonSafe } from "@/lib/http";
 
 type BillingMe = {
   plan: string;
@@ -31,7 +32,7 @@ function BillingInner() {
       try {
         const res = await fetch("/api/billing/me");
         if (!res.ok) throw new Error("Failed to load billing");
-        setMe(await res.json());
+        setMe(await readJsonSafe<BillingMe>(res));
       } catch {
         setMe(null);
       } finally {
@@ -90,7 +91,12 @@ function BillingInner() {
                   type="button"
                   variant="ghost"
                   onClick={() => {
-                    window.location.href = "/api/portal";
+                    // Open Dodo portal in a new tab so this page keeps the
+                    // Settings Console sidebar (no full-page navigation away).
+                    const w = window.open("/api/portal", "_blank", "noopener,noreferrer");
+                    if (!w) {
+                      toast.error("Allow pop-ups to open the billing portal");
+                    }
                   }}
                 >
                   Manage subscription

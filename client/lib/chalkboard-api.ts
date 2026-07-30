@@ -1,3 +1,6 @@
+import type { PlanId } from "@/lib/billing/plans";
+import { PLAN_RANK } from "@/lib/billing/plans";
+
 /** Matches `worker.DEFAULT_MODEL` / `schema.chat.ChatRequest`. */
 export const DEFAULT_LECTURE_MODEL = "deepseek/deepseek-v3.2";
 
@@ -5,6 +8,8 @@ export type LectureModelOption = {
   id: string;
   label: string;
   hint: string;
+  /** Minimum plan required to select this model. */
+  minPlan: PlanId;
 };
 
 /** OpenRouter-style ids with human labels for the selector. */
@@ -12,26 +17,52 @@ export const LECTURE_MODELS: LectureModelOption[] = [
   {
     id: "deepseek/deepseek-v3.2",
     label: "DeepSeek V3.2",
-    hint: "Fast · strong for math",
-  },
-  {
-    id: "openai/gpt-4o",
-    label: "GPT-4o",
-    hint: "Balanced · clear narration",
-  },
-  {
-    id: "anthropic/claude-3.5-sonnet",
-    label: "Claude 3.5 Sonnet",
-    hint: "Careful · explanatory",
+    hint: "Fast · Free+",
+    minPlan: "FREE",
   },
   {
     id: "google/gemini-2.0-flash-001",
     label: "Gemini 2.0 Flash",
-    hint: "Quick · exploratory",
+    hint: "Quick · Free+",
+    minPlan: "FREE",
+  },
+  {
+    id: "openai/gpt-4o",
+    label: "GPT-4o",
+    hint: "Balanced · Hobby+",
+    minPlan: "HOBBY",
+  },
+  {
+    id: "anthropic/claude-3.5-sonnet",
+    label: "Claude 3.5 Sonnet",
+    hint: "Careful · Hobby+",
+    minPlan: "HOBBY",
+  },
+  {
+    id: "anthropic/claude-opus-4",
+    label: "Claude Opus 4",
+    hint: "Best quality · Pro",
+    minPlan: "PRO",
   },
 ];
 
 export const LECTURE_MODEL_OPTIONS = LECTURE_MODELS.map((m) => m.id);
+
+export function modelsForPlan(plan: string | null | undefined): LectureModelOption[] {
+  const p = (plan?.toUpperCase() ?? "FREE") as PlanId;
+  const rank = PLAN_RANK[p] ?? 0;
+  return LECTURE_MODELS.filter((m) => PLAN_RANK[m.minPlan] <= rank);
+}
+
+export function isModelAllowedForPlan(
+  modelId: string,
+  plan: string | null | undefined
+): boolean {
+  const m = LECTURE_MODELS.find((x) => x.id === modelId);
+  if (!m) return false;
+  const p = (plan?.toUpperCase() ?? "FREE") as PlanId;
+  return (PLAN_RANK[p] ?? 0) >= PLAN_RANK[m.minPlan];
+}
 
 export const DURATION_OPTIONS = [
   { value: undefined as number | undefined, label: "Auto length" },
@@ -169,7 +200,13 @@ export async function createLectureJob(
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(await readApiError(res));
-  return res.json() as Promise<JobCreateResponse>;
+  const text = await res.text();
+  if (!text.trim()) throw new Error("Empty response from video service");
+  try {
+    return JSON.parse(text) as JobCreateResponse;
+  } catch {
+    throw new Error("Invalid JSON from video service");
+  }
 }
 
 export async function fetchJobStatus(jobId: string): Promise<JobStatusResponse> {
@@ -179,7 +216,13 @@ export async function fetchJobStatus(jobId: string): Promise<JobStatusResponse> 
     cache: "no-store",
   });
   if (!res.ok) throw new Error(await readApiError(res));
-  return res.json() as Promise<JobStatusResponse>;
+  const text = await res.text();
+  if (!text.trim()) throw new Error("Empty job status response");
+  try {
+    return JSON.parse(text) as JobStatusResponse;
+  } catch {
+    throw new Error("Invalid JSON from job status");
+  }
 }
 
 export function sleep(ms: number): Promise<void> {

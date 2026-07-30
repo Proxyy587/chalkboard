@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { readJsonSafe } from "@/lib/http";
 import {
   Select,
   SelectContent,
@@ -79,9 +80,17 @@ export default function StorageSettingsPage() {
     setLoading(true);
     try {
       const res = await fetch("/api/storage");
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Failed to load");
-      setIntegrations(data.integrations ?? []);
+      const data = await readJsonSafe(res);
+      if (!res.ok) {
+        throw new Error(
+          typeof data.error === "string" ? data.error : "Failed to load"
+        );
+      }
+      setIntegrations(
+        Array.isArray(data.integrations)
+          ? (data.integrations as Integration[])
+          : []
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");
     } finally {
@@ -138,8 +147,12 @@ export default function StorageSettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(buildPayload()),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Save failed");
+      const data = await readJsonSafe(res);
+      if (!res.ok) {
+        throw new Error(
+          typeof data.error === "string" ? data.error : "Save failed"
+        );
+      }
       setShowForm(false);
       setName("");
       setAccessKeyId("");
@@ -172,12 +185,14 @@ export default function StorageSettingsPage() {
 
   async function test(id: string) {
     const res = await fetch(`/api/storage/${id}`, { method: "POST" });
-    const data = await res.json();
+    const data = await readJsonSafe(res);
     if (data.success) {
       toast.success("Connection OK");
       await load();
     } else {
-      toast.error(data.error ?? "Connection failed");
+      toast.error(
+        typeof data.error === "string" ? data.error : "Connection failed"
+      );
     }
   }
 

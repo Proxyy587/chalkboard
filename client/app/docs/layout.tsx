@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 
 import { DocsSideNav } from "@/components/docs/docs-side-nav";
-import { ThemeToggle } from "@/components/theme/theme-provider";
+import { SiteHeader } from "@/components/layout/site-header";
 import { pageMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = pageMetadata({
@@ -22,57 +20,7 @@ export const metadata: Metadata = pageMetadata({
 export default function DocsRootLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex h-dvh max-h-dvh flex-col overflow-hidden bg-background">
-      <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border px-4 md:px-6">
-        <div className="flex min-w-0 items-center gap-4">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-1.5 text-[12px] text-[var(--muted-text)] transition-colors hover:text-foreground"
-          >
-            <ArrowLeft className="size-3.5" strokeWidth={1.5} />
-            Home
-          </Link>
-          <span className="hidden h-3 w-px bg-border sm:block" />
-          <Link href="/docs" className="mm-brand truncate text-[13px]">
-            manimotion
-          </Link>
-          <span className="hidden text-[11px] text-[var(--muted-2)] sm:inline">
-            Docs
-          </span>
-        </div>
-        <nav className="flex items-center gap-2 sm:gap-3">
-          <Link
-            href="/docs"
-            className="text-[12px] text-[var(--muted-text)] transition-colors hover:text-foreground sm:hidden"
-          >
-            Docs
-          </Link>
-          <Link
-            href="/docs/quickstart"
-            className="hidden text-[12px] text-[var(--muted-text)] transition-colors hover:text-foreground sm:inline"
-          >
-            Quickstart
-          </Link>
-          <Link
-            href="/docs/api"
-            className="hidden text-[12px] text-[var(--muted-text)] transition-colors hover:text-foreground sm:inline"
-          >
-            API
-          </Link>
-          <Link
-            href="/docs/contributing"
-            className="hidden text-[12px] text-[var(--muted-text)] transition-colors hover:text-foreground md:inline"
-          >
-            Contribute
-          </Link>
-          <Link
-            href="/settings/api-keys"
-            className="text-[12px] text-[var(--muted-text)] transition-colors hover:text-foreground"
-          >
-            Get key
-          </Link>
-          <ThemeToggle />
-        </nav>
-      </header>
+      <SiteHeader section="docs" />
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <aside className="hidden w-[240px] shrink-0 overflow-y-auto border-r border-border bg-background p-5 md:block">

@@ -53,6 +53,23 @@
   /* uses .mm-icon-btn globally; keep alias for old class */
 }
 
+/* Home SiteHeader — same slide-in as the old lp-topbar */
+.lp-site-header {
+  background: var(--lp-bar-bg) !important;
+  backdrop-filter: saturate(140%) blur(8px);
+  -webkit-backdrop-filter: saturate(140%) blur(8px);
+  border-bottom-color: var(--lp-line) !important;
+  transform: translateY(-101%);
+  transition: transform 0.32s cubic-bezier(0.22, 0.61, 0.36, 1),
+    background-color 0.25s ease, border-color 0.25s ease;
+  pointer-events: none;
+}
+
+.lp-site-header.show {
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
 .lp-topbar {
   position: fixed;
   top: 0;

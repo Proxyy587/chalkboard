@@ -12,13 +12,13 @@ function env() {
   return { bearerToken, webhookKey, returnUrl, environment };
 }
 
+/** @deprecated Public SDK checkout — prefer /api/billing/checkout */
 export function createCheckoutHandlers() {
   const { bearerToken, returnUrl, environment } = env();
   if (!bearerToken) {
     throw new Error("DODO_PAYMENTS_API_KEY is not set");
   }
   return {
-    // Session checkout — preferred for subscriptions
     POST: Checkout({
       bearerToken,
       returnUrl,
@@ -28,6 +28,7 @@ export function createCheckoutHandlers() {
   };
 }
 
+/** @deprecated Prefer authenticated /api/portal */
 export function createPortalHandler() {
   const { bearerToken, environment } = env();
   if (!bearerToken) {
@@ -54,5 +55,5 @@ export function createWebhookHandler(handlers: {
   return Webhooks({
     webhookKey,
     ...handlers,
-  });
+  }) as unknown as (req: Request) => Promise<Response> | Response;
 }

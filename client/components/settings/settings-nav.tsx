@@ -10,7 +10,13 @@ const links = [
   { href: "/settings", label: "Overview", icon: LayoutGrid, exact: true },
   { href: "/settings/api-keys", label: "API keys", icon: KeyRound },
   { href: "/settings/storage", label: "Storage", icon: HardDrive },
-  { href: "/settings/billing", label: "Billing", icon: CreditCard },
+  {
+    href: "/settings/billing",
+    label: "Billing",
+    icon: CreditCard,
+    // Pricing lives in the same console chrome — keep Billing highlighted there.
+    alsoActiveOn: ["/pricing"],
+  },
 ];
 
 export function SettingsNav() {
@@ -20,7 +26,9 @@ export function SettingsNav() {
       {links.map((link) => {
         const active = link.exact
           ? pathname === link.href
-          : pathname.startsWith(link.href);
+          : pathname.startsWith(link.href) ||
+            ("alsoActiveOn" in link &&
+              link.alsoActiveOn?.some((p) => pathname.startsWith(p)));
         const Icon = link.icon;
         return (
           <Link

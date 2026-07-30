@@ -1,10 +1,14 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+
 import {
   DURATION_OPTIONS,
-  LECTURE_MODELS,
   getModelLabel,
+  modelsForPlan,
 } from "@/lib/chalkboard-api";
+import { readJsonSafe } from "@/lib/http";
 import { cn } from "@/lib/utils";
 import {
   Select,
@@ -27,8 +31,29 @@ export function ModelSelector({
   onDurationChange?: (duration: number | undefined) => void;
   className?: string;
 }) {
-  const known = LECTURE_MODELS.some((m) => m.id === model);
+  const [plan, setPlan] = useState<string>("FREE");
+  const available = useMemo(() => modelsForPlan(plan), [plan]);
+  const known = available.some((m) => m.id === model);
   const durationValue = duration == null ? "auto" : String(duration);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await fetch("/api/billing/me");
+        if (!res.ok) return;
+        const data = await readJsonSafe<{ plan?: string }>(res);
+        if (data.plan) setPlan(data.plan);
+      } catch {
+        /* guests stay FREE */
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (available.length && !available.some((m) => m.id === model)) {
+      onModelChange(available[0].id);
+    }
+  }, [plan, model, onModelChange, available]);
 
   return (
     <div className={cn("flex flex-wrap items-center gap-2", className)}>
@@ -44,13 +69,21 @@ export function ModelSelector({
           {!known && (
             <SelectItem value={model}>{getModelLabel(model)}</SelectItem>
           )}
-          {LECTURE_MODELS.map((m) => (
+          {available.map((m) => (
             <SelectItem key={m.id} value={m.id}>
               {m.label}
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
+      {plan !== "PRO" && (
+        <Link
+          href="/pricing"
+          className="text-[11px] text-[var(--muted-2)] underline-offset-2 hover:text-foreground hover:underline"
+        >
+          Upgrade models
+        </Link>
+      )}
 
       {onDurationChange && (
         <Select

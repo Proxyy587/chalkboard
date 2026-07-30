@@ -50,7 +50,7 @@ export function Sidebar() {
                 "flex items-center gap-2.5 rounded-[8px] px-3 py-2 text-[13px] font-medium transition-colors",
                 active
                   ? "bg-[var(--chip)] text-foreground"
-                  : "text-[var(--muted-text)] hover:bg-[var(--chip)] hover:text-foreground"
+                  : "text-[var(--muted-text)] hover:bg-[var(--chip)] hover:text-foreground",
               )}
             >
               <Icon className="size-4 opacity-70" strokeWidth={1.5} />

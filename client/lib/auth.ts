@@ -7,9 +7,25 @@ import { db } from "@/lib/db";
 const githubClientId = process.env.GITHUB_CLIENT_ID?.trim();
 const githubClientSecret = process.env.GITHUB_CLIENT_SECRET?.trim();
 
+const appUrl =
+  process.env.BETTER_AUTH_URL?.trim() ||
+  process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+  "http://localhost:3000";
+
+const isProdManimotion =
+  /manimotion\.dev$/i.test(
+    (() => {
+      try {
+        return new URL(appUrl).hostname;
+      } catch {
+        return "";
+      }
+    })()
+  );
+
 export const auth = betterAuth({
   appName: "manimotion",
-  baseURL: process.env.BETTER_AUTH_URL,
+  baseURL: appUrl,
   database: prismaAdapter(db, {
     provider: "postgresql",
   }),
@@ -72,6 +88,15 @@ export const auth = betterAuth({
   ].filter((v, i, a) => Boolean(v) && a.indexOf(v) === i),
   advanced: {
     useSecureCookies: process.env.NODE_ENV === "production",
+    // Keep sessions working on both apex and www.
+    ...(isProdManimotion
+      ? {
+          crossSubDomainCookies: {
+            enabled: true,
+            domain: ".manimotion.dev",
+          },
+        }
+      : {}),
   },
   plugins: [nextCookies()],
 });

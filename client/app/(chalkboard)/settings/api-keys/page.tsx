@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { setStoredApiKey } from "@/lib/chalkboard-api";
+import { readJsonSafe } from "@/lib/http";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -51,7 +52,7 @@ export default function ApiKeysSettingsPage() {
     setLoading(true);
     try {
       const res = await fetch("/api/api-keys");
-      const data = await res.json();
+      const data = await readJsonSafe<{ error?: string; keys?: ApiKeyRow[] }>(res);
       if (!res.ok) throw new Error(data.error ?? "Failed to load keys");
       setKeys(data.keys ?? []);
     } catch (e) {
@@ -75,9 +76,9 @@ export default function ApiKeysSettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: name.trim(), environment: "live" }),
       });
-      const data = await res.json();
+      const data = await readJsonSafe<{ error?: string; key?: string }>(res);
       if (!res.ok) throw new Error(data.error ?? "Create failed");
-      setCreatedKey(data.key);
+      setCreatedKey(data.key ?? null);
       setName("");
       toast.success("API key created");
       await load();
@@ -96,7 +97,7 @@ export default function ApiKeysSettingsPage() {
     setRevokeTarget(null);
     const res = await fetch(`/api/api-keys/${target.id}`, { method: "DELETE" });
     if (!res.ok) {
-      const data = await res.json();
+      const data = await readJsonSafe<{ error?: string }>(res);
       toast.error(data.error ?? "Revoke failed");
       return;
     }

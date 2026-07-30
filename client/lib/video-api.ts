@@ -33,6 +33,9 @@ export type VideoRequestBody = {
   engine?: "auto" | "manim" | "remotion";
   duration?: number;
   storage?: VideoStorageRequest;
+  /** Platform proxy only — free-tier quality pins */
+  watermark?: boolean;
+  max_height?: number;
 };
 
 export type VideoJobResponse = {

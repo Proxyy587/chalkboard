@@ -4,9 +4,9 @@
 
 | Plan | Price | Renders | Notes |
 |------|-------|---------|--------|
-| Free | $0 | 3 / day | Watermark, 720p, your OpenRouter key |
-| Hobby | $9/mo | 80 / month | 1080p, no watermark, commercial |
-| Pro | $19/mo | 400 / month | API keys, higher concurrency |
+| Free | $0 | 3 / day | API OK · fast models · watermark · 720p |
+| Hobby | $9/mo | 40 / month | GPT-4o / Sonnet · 1080p · no watermark |
+| Pro | $19/mo | 80 / month | Opus-class models · priority queue |
 
 Later: BYOK OpenRouter for power users (you only meter renders).
 
