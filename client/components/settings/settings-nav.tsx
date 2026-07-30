@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { HardDrive, KeyRound, LayoutGrid } from "lucide-react";
+import { CreditCard, HardDrive, KeyRound, LayoutGrid } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -10,6 +10,7 @@ const links = [
   { href: "/settings", label: "Overview", icon: LayoutGrid, exact: true },
   { href: "/settings/api-keys", label: "API keys", icon: KeyRound },
   { href: "/settings/storage", label: "Storage", icon: HardDrive },
+  { href: "/settings/billing", label: "Billing", icon: CreditCard },
 ];
 
 export function SettingsNav() {

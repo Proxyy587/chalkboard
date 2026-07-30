@@ -83,9 +83,9 @@ export const metadata: Metadata = {
     },
   },
   icons: {
-    icon: [{ url: OG_IMAGE_PATH, type: "image/png" }],
-    apple: [{ url: OG_IMAGE_PATH, type: "image/png" }],
-    shortcut: OG_IMAGE_PATH,
+    icon: [{ url: "/logo.png", type: "image/png" }],
+    apple: [{ url: "/logo.png", type: "image/png" }],
+    shortcut: "/logo.png",
   },
   manifest: "/manifest.webmanifest",
   appleWebApp: {

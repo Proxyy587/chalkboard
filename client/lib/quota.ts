@@ -5,8 +5,12 @@ import { db } from "@/lib/db";
 export const GUEST_LIFETIME_LIMIT = 1;
 export const FREE_DAILY_LIMIT = 3;
 
-/** Plans that are not rate-capped (owner/paid). FREE + STUDENT are capped. */
-const UNLIMITED_PLANS = new Set(["PRO", "CREATOR", "ENTERPRISE", "OWNER"]);
+/** True unlimited (owner / enterprise). Paid Hobby/Pro use monthly renderCredits. */
+const UNLIMITED_PLANS = new Set(["ENTERPRISE", "OWNER"]);
+
+export function utcMonth(d = new Date()): string {
+  return d.toISOString().slice(0, 7);
+}
 
 export function utcDay(d = new Date()): string {
   return d.toISOString().slice(0, 10);
@@ -113,4 +117,76 @@ export async function checkUserDailyQuota(
 
 export async function consumeUserDailyQuota(userId: string): Promise<void> {
   await bump(`user:${userId}`, utcDay());
+}
+
+/**
+ * Account-level quota for website demo (master key path).
+ * FREE → daily. HOBBY/PRO → monthly renderCredits. OWNER → unlimited.
+ */
+export async function checkAccountRenderQuota(
+  userId: string,
+  opts?: { ownerEmail?: boolean }
+): Promise<QuotaResult & { mode: "daily" | "monthly" | "unlimited" }> {
+  if (opts?.ownerEmail) {
+    return { ok: true, remaining: 9999, limit: 9999, mode: "unlimited" };
+  }
+
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: {
+      plan: true,
+      renderCredits: true,
+      billingPeriod: true,
+    },
+  });
+
+  const plan = (user?.plan ?? "FREE").toUpperCase();
+  if (isUnlimitedPlan(plan) || opts?.ownerEmail) {
+    return { ok: true, remaining: 9999, limit: 9999, mode: "unlimited" };
+  }
+
+  if (plan === "HOBBY" || plan === "PRO") {
+    const period = utcMonth();
+    let credits = user?.renderCredits ?? 0;
+    // Soft reset if period rolled and webhook didn't refill yet
+    if (user?.billingPeriod && user.billingPeriod !== period && credits <= 0) {
+      return {
+        ok: false,
+        remaining: 0,
+        limit: 0,
+        mode: "monthly",
+        error:
+          "Monthly renders exhausted. Renew or wait for the next billing period.",
+      };
+    }
+    if (credits <= 0) {
+      return {
+        ok: false,
+        remaining: 0,
+        limit: 0,
+        mode: "monthly",
+        error:
+          "No renders left this month. Upgrade or wait for renewal.",
+      };
+    }
+    return { ok: true, remaining: credits, limit: credits, mode: "monthly" };
+  }
+
+  const daily = await checkUserDailyQuota(userId);
+  return { ...daily, mode: "daily" };
+}
+
+export async function consumeAccountRender(
+  userId: string,
+  mode: "daily" | "monthly" | "unlimited"
+): Promise<void> {
+  if (mode === "unlimited") return;
+  if (mode === "daily") {
+    await consumeUserDailyQuota(userId);
+    return;
+  }
+  await db.user.update({
+    where: { id: userId },
+    data: { renderCredits: { decrement: 1 } },
+  });
 }

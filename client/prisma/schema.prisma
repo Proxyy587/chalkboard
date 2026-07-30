@@ -18,6 +18,19 @@ model User {
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
+  /// FREE | HOBBY | PRO | OWNER
+  plan              String  @default("FREE")
+  /// Remaining paid renders this billing period (null = use daily free quota)
+  renderCredits     Int     @default(0) @map("render_credits")
+  /// UTC month key YYYY-MM for monthly reset
+  billingPeriod     String? @map("billing_period")
+  dodoCustomerId    String? @unique @map("dodo_customer_id")
+  dodoSubscriptionId String? @unique @map("dodo_subscription_id")
+  subscriptionStatus String? @map("subscription_status")
+  /// Optional BYOK — encrypted OpenRouter key (phase 2)
+  openrouterKeyEnc  String? @map("openrouter_key_enc") @db.Text
+  usingOwnKey       Boolean @default(false) @map("using_own_key")
+
   sessions Session[]
   accounts Account[]
 

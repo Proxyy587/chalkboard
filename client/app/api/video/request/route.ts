@@ -3,26 +3,23 @@ import { NextResponse } from "next/server";
 import { getChalkboardApiBase } from "@/lib/chalkboard-api";
 import { getSession } from "@/lib/auth/session";
 import {
+  checkAccountRenderQuota,
   checkGuestQuota,
-  checkUserDailyQuota,
   clientIp,
+  consumeAccountRender,
   consumeGuestQuota,
-  consumeUserDailyQuota,
   isOwnerEmail,
-  isUnlimitedPlan,
 } from "@/lib/quota";
 import type { VideoRequestBody } from "@/lib/video-api";
-import { db } from "@/lib/db";
 
 /**
  * Proxy to the Python video worker with quota enforcement.
  *
- * - Guest (no session): 1 video / IP lifetime (cache clear does not reset)
- * - Signed-in free: 3 videos / UTC day (website demo via master key)
- * - Owner email / unlimited plan / CLARITY_API_KEY: unlimited
- * - chalk_* keys: worker enforces daily quota by plan
- *
- * Never exposes CLARITY_API_KEY to the browser.
+ * - Guest: 1 video / IP lifetime
+ * - Free account: 3 / UTC day
+ * - Hobby/Pro: monthly renderCredits (Dodo)
+ * - Owner email / master key: unlimited
+ * - chalk_* keys: worker enforces by key plan
  */
 export async function POST(req: Request) {
   const session = await getSession();
@@ -47,9 +44,9 @@ export async function POST(req: Request) {
 
   const ownerByEmail = isOwnerEmail(user?.email);
 
-  // chalk_* → worker enforces FREE daily. Owner emails always unlimited on demo path.
   let apiKey = "";
-  let consume: "guest" | "user" | null = null;
+  let consume: "guest" | "account" | null = null;
+  let accountMode: "daily" | "monthly" | "unlimited" = "daily";
 
   if (isUserKey) {
     apiKey = incoming;
@@ -58,11 +55,9 @@ export async function POST(req: Request) {
     apiKey = master;
     consume = null;
   } else if (incoming && !isUserKey && !isMasterKey) {
-    // Unknown key — still forward; worker returns 401. Don't burn quota.
     apiKey = incoming;
     consume = null;
   } else {
-    // No browser key → server injects master for open demo / signed-in UI
     if (!master) {
       return NextResponse.json(
         {
@@ -83,27 +78,18 @@ export async function POST(req: Request) {
         );
       }
       consume = "guest";
-    } else if (ownerByEmail) {
-      consume = null;
     } else {
-      // Prefer plan from any active API key for this user
-      const keyRow = await db.apiKey.findFirst({
-        where: { userId: user.id, isActive: true, revokedAt: null },
-        select: { plan: true },
-        orderBy: { createdAt: "desc" },
+      const q = await checkAccountRenderQuota(user.id, {
+        ownerEmail: ownerByEmail,
       });
-      if (isUnlimitedPlan(keyRow?.plan)) {
-        consume = null;
-      } else {
-        const q = await checkUserDailyQuota(user.id, { unlimited: false });
-        if (!q.ok) {
-          return NextResponse.json(
-            { error: q.error, remaining: 0, limit: q.limit },
-            { status: 429 }
-          );
-        }
-        consume = "user";
+      if (!q.ok) {
+        return NextResponse.json(
+          { error: q.error, remaining: 0, limit: q.limit },
+          { status: 429 }
+        );
       }
+      accountMode = q.mode;
+      consume = q.mode === "unlimited" ? null : "account";
     }
   }
 
@@ -127,16 +113,16 @@ export async function POST(req: Request) {
 
   const data = await res.json().catch(() => ({}));
 
-  // Only consume after the worker accepted the job (2xx)
   if (res.ok) {
     try {
       if (consume === "guest") await consumeGuestQuota(ip);
-      if (consume === "user" && user) await consumeUserDailyQuota(user.id);
+      if (consume === "account" && user) {
+        await consumeAccountRender(user.id, accountMode);
+      }
     } catch {
-      // Don't fail the job if quota write races; worker already accepted
+      /* don't fail accepted jobs on quota write races */
     }
   }
 
-  // Never leak internal detail shapes to clients beyond worker payload
   return NextResponse.json(data, { status: res.status });
 }
