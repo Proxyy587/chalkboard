@@ -20,6 +20,25 @@ def _has_ffmpeg_filter(name: str) -> bool:
         return False
 
 
+def _short_ffmpeg_error(err: str, limit: int = 800) -> str:
+    text = (err or "").strip()
+    if not text:
+        return "ffmpeg failed"
+    # Prefer the actionable tail (real error lines), drop the giant banner.
+    lines = [ln for ln in text.splitlines() if ln.strip()]
+    useful = [
+        ln
+        for ln in lines
+        if not ln.startswith("  ")
+        and "configuration:" not in ln
+        and "libav" not in ln
+        and "ffmpeg version" not in ln
+    ]
+    picked = useful[-12:] if useful else lines[-12:]
+    out = "\n".join(picked)
+    return out[-limit:]
+
+
 def merge_video_audio_captions(
     video_path: str,
     audio_path: str,
@@ -32,12 +51,8 @@ def merge_video_audio_captions(
     """
     Merge narration onto video with NO speed adjustment (atempo forbidden).
 
-    Voice length is sacred. Timing sync must come from beat-timed codegen.
-
-    Mismatch policy:
-      - Audio longer than video → freeze-pad last video frame (tpad)
-      - Video longer than audio → keep natural audio; video continues after voice
-        ends (no -shortest trim that fights beat sync; no voice stretch)
+    ffmpeg rule: all `-i` inputs first, then output options (`-vf`, `-map`, …).
+    Soft subtitle tracks are skipped — burn captions in a second pass (more reliable).
     """
     log("Step 5/6: Merging video + narration (natural tempo, no atempo)...")
     final_path = video_path.replace(".mp4", "_final.mp4")
@@ -66,75 +81,57 @@ def merge_video_audio_captions(
         srt_abs = os.path.abspath(srt_path)
     final_abs = os.path.abspath(final_path)
 
-    def _run_audio_merge(include_soft_subs: bool) -> None:
-        cmd = ["ffmpeg", "-y"]
-        if pad_video_sec > 0.05:
-            vf = f"tpad=stop_mode=clone:stop_duration={pad_video_sec:.3f}"
-            cmd.extend(["-i", video_abs, "-vf", vf])
-        else:
-            cmd.extend(["-i", video_abs])
-        cmd.extend(["-i", audio_abs])
-        if include_soft_subs and srt_abs:
-            cmd.extend(["-i", srt_abs])
+    # ALL inputs first — `-vf` after `-i` but before the next `-i` makes ffmpeg
+    # treat the filter as an input option for the audio file (breaks merge).
+    cmd = ["ffmpeg", "-y", "-i", video_abs, "-i", audio_abs]
 
-        cmd.extend(["-map", "0:v:0", "-map", "1:a:0"])
-        if include_soft_subs and srt_abs:
-            cmd.extend(["-map", "2:0"])
-
-        # No atempo. No -shortest — let padded video cover full narration,
-        # or let slightly-long video finish after voice ends.
+    if pad_video_sec > 0.05:
         cmd.extend(
             [
-                "-c:v",
-                "libx264" if pad_video_sec > 0.05 else "copy",
-                "-preset",
-                "fast",
-                "-crf",
-                "20",
-                "-c:a",
-                "aac",
-                "-b:a",
-                "192k",
-                "-ar",
-                "48000",
-                "-ac",
-                "2",
+                "-vf",
+                f"tpad=stop_mode=clone:stop_duration={pad_video_sec:.3f}",
             ]
         )
-        if include_soft_subs and srt_abs:
-            cmd.extend(["-c:s", "mov_text", "-metadata:s:s:0", "language=eng"])
 
-        # When video is longer and we didn't pad, duration follows video.
-        # When we padded, video ≈ audio. Explicit -t to audio length when padded
-        # keeps trailing silence from an overshot pad from mattering.
-        if pad_video_sec > 0.05 and audio_duration > 0:
-            cmd.extend(["-t", f"{audio_duration:.3f}"])
+    cmd.extend(
+        [
+            "-map",
+            "0:v:0",
+            "-map",
+            "1:a:0",
+            "-c:v",
+            "libx264" if pad_video_sec > 0.05 else "copy",
+            "-preset",
+            "fast",
+            "-crf",
+            "20",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "192k",
+            "-ar",
+            "48000",
+            "-ac",
+            "2",
+        ]
+    )
+    if pad_video_sec > 0.05 and audio_duration > 0:
+        cmd.extend(["-t", f"{audio_duration:.3f}"])
+    elif audio_duration > 0 and video_duration > 0 and video_duration > audio_duration + 0.15:
+        # Video longer: end when narration ends (hold natural voice, no stretch).
+        cmd.extend(["-shortest"])
 
-        cmd.extend(["-movflags", "+faststart", final_abs])
+    cmd.extend(["-movflags", "+faststart", final_abs])
+
+    try:
         subprocess.run(cmd, check=True, capture_output=True, text=True)
-
-    if srt_abs:
-        try:
-            _run_audio_merge(include_soft_subs=True)
-            log(f"  ✔️ Final merged video (soft captions) saved at {final_path}")
-        except subprocess.CalledProcessError as e:
-            err = (e.stderr or "").strip() or str(e)
-            err_path = os.path.join(output_dir, "ffmpeg_merge_error.log")
-            with open(err_path, "w", encoding="utf-8") as f:
-                f.write(err)
-            log("  ⚠️ Soft caption mux failed — retrying audio-only merge.")
-            _run_audio_merge(include_soft_subs=False)
-            log(f"  ✔️ Final merged video saved at {final_path}")
-    else:
-        try:
-            _run_audio_merge(include_soft_subs=False)
-            log(f"  ✔️ Final merged video saved at {final_path}")
-        except subprocess.CalledProcessError as e:
-            err = (e.stderr or "").strip() or (e.stdout or "").strip() or str(e)
-            err_path = os.path.join(output_dir, "ffmpeg_merge_error.log")
-            with open(err_path, "w", encoding="utf-8") as f:
-                f.write(err)
-            raise RuntimeError(f"ffmpeg audio merge failed: {err}") from e
+        log(f"  ✔️ Final merged video saved at {final_path}")
+    except subprocess.CalledProcessError as e:
+        err = (e.stderr or "").strip() or (e.stdout or "").strip() or str(e)
+        err_path = os.path.join(output_dir, "ffmpeg_merge_error.log")
+        with open(err_path, "w", encoding="utf-8") as f:
+            f.write(err)
+        raise RuntimeError(f"ffmpeg audio merge failed: {_short_ffmpeg_error(err)}") from e
 
     if srt_abs and _has_ffmpeg_filter("subtitles"):
         burned = final_abs.replace("_final.mp4", "_final_subs.mp4")
@@ -153,6 +150,10 @@ def merge_video_audio_captions(
             vf,
             "-c:v",
             "libx264",
+            "-preset",
+            "fast",
+            "-crf",
+            "20",
             "-c:a",
             "copy",
             "-movflags",

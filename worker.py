@@ -17,12 +17,21 @@ from services.llm import (
     generate_remotion_code,
     generate_visual_plan,
 )
+from services.manim_pad import append_end_wait
 from services.merger import merge_video_audio_captions
 from services.remotion_renderer import render_remotion
 from services.renderer import get_media_duration, render_video
 from services.storage import upload_to_r2
 from services.user_storage import UserStorageConfig
 import subprocess
+
+
+def _default_max_attempts() -> int:
+    raw = (os.getenv("MANIM_MAX_ATTEMPTS") or "3").strip()
+    try:
+        return max(1, min(int(raw), 5))
+    except ValueError:
+        return 3
 
 
 def log(msg: str):
@@ -83,7 +92,8 @@ async def _run_manim_pipeline(
     duration: Optional[int],
     complexity: str,
     output_dir: str,
-    max_attempts: int = 4,
+    max_attempts: int = 3,
+    audio_duration: Optional[float] = None,
 ) -> tuple[Optional[str], Optional[str]]:
     last_error = None
     previous_code = None
@@ -91,9 +101,9 @@ async def _run_manim_pipeline(
     for attempt in range(1, max_attempts + 1):
         attempt_complexity = complexity
         attempt_plan: dict[str, Any] | str = visual_plan
+        # Fail fast toward simple, crash-proof scenes — 4 fancy retries burn minutes.
         if attempt >= 2:
             attempt_complexity = "simple"
-        if attempt >= 3:
             attempt_plan = (
                 "Keep it VERY simple and crash-proof:\n"
                 "1) Title at top\n"
@@ -102,6 +112,7 @@ async def _run_manim_pipeline(
                 "4) TransformMatchingTex to next equation\n"
                 "5) Short conclusion text\n"
                 "NO get_part_by_tex, NO arrows to equation parts, NO next_to on subparts.\n"
+                "Match beat START AT / HOLD FOR timings with self.wait().\n"
                 f"Original plan intent (simplify heavily):\n{plan_text[:1200]}"
             )
         log(f"\n🧠 Manim attempt {attempt}/{max_attempts} (complexity={attempt_complexity})")
@@ -122,10 +133,29 @@ async def _run_manim_pipeline(
             continue
         previous_code = code
         video, err = render_video(code, output_dir=output_dir, log=log)
-        if video:
-            return video, None
-        last_error = err
-        log("🔁 Manim render failed — retrying with error context...")
+        if not video:
+            last_error = err
+            log("🔁 Manim render failed — retrying with error context...")
+            continue
+
+        # If picture undershot narration, one pad re-render (real waits > freeze-frame).
+        if audio_duration and audio_duration > 0 and previous_code:
+            try:
+                vd = get_media_duration(video)
+                shortfall = float(audio_duration) - vd
+            except Exception:
+                shortfall = 0.0
+            if shortfall > 1.5:
+                log(
+                    f"  ⏱️ Video short by {shortfall:.1f}s — "
+                    f"re-rendering once with end wait (no voice stretch)"
+                )
+                padded = append_end_wait(previous_code, shortfall)
+                video2, err2 = render_video(padded, output_dir=output_dir, log=log)
+                if video2:
+                    return video2, None
+                log(f"  ⚠️ Pad re-render skipped ({(err2 or '')[:200]}) — merge will freeze-pad")
+        return video, None
     return None, last_error or "Manim failed after all attempts"
 
 
@@ -137,7 +167,7 @@ async def _run_remotion_pipeline(
     complexity: str,
     job_id: str,
     output_dir: str,
-    max_attempts: int = 4,
+    max_attempts: int = 3,
 ) -> tuple[Optional[str], Optional[str]]:
     from services.llm import judge_generated_code, quality_judge_enabled
 
@@ -149,7 +179,6 @@ async def _run_remotion_pipeline(
         attempt_plan: dict[str, Any] | str = visual_plan
         if attempt >= 2:
             attempt_complexity = "simple"
-        if attempt >= 3:
             attempt_plan = (
                 "Keep it VERY simple and compile-proof:\n"
                 "1) AbsoluteFill dark bg #0B1020\n"
@@ -157,6 +186,7 @@ async def _run_remotion_pipeline(
                 "3) Text + simple SVG or bars only — no complex filters\n"
                 "4) interpolate with clamp + Easing.out(Easing.cubic)\n"
                 "5) No emoji, no external assets\n"
+                "Honor BEAT start_s / duration_sec from the sheet.\n"
                 f"Original plan intent (simplify heavily):\n{plan_text[:1200]}"
             )
         log(f"\n🧠 Remotion attempt {attempt}/{max_attempts} (complexity={attempt_complexity})")
@@ -255,7 +285,7 @@ async def process_topic_async(
     user_id: Optional[str] = None,
     storage_override: Optional[UserStorageConfig] = None,
     use_platform_storage: bool = False,
-    max_attempts: int = 4,
+    max_attempts: int = 3,
     status_cb=None,
     watermark: bool = False,
     max_height: int = 1080,
@@ -333,6 +363,7 @@ async def process_topic_async(
 
         # 3) Generate + render video timed to measured beat timestamps
         set_status("generating_code", engine=chosen_engine)
+        attempts = max_attempts or _default_max_attempts()
         if chosen_engine == "remotion":
             video, render_err = await _run_remotion_pipeline(
                 topic=subject,
@@ -342,7 +373,7 @@ async def process_topic_async(
                 complexity=complexity,
                 job_id=job_id,
                 output_dir=work_dir,
-                max_attempts=min(3, max_attempts),
+                max_attempts=min(3, attempts),
             )
         else:
             video, render_err = await _run_manim_pipeline(
@@ -352,7 +383,8 @@ async def process_topic_async(
                 duration=code_duration,
                 complexity=complexity,
                 output_dir=work_dir,
-                max_attempts=max_attempts,
+                max_attempts=attempts,
+                audio_duration=audio_duration,
             )
 
         if not (video and os.path.exists(video)):
@@ -450,7 +482,7 @@ def process_topic(
     engine: str = "auto",
     duration: Optional[int] = None,
     job_id: Optional[str] = None,
-    max_attempts: int = 4,
+    max_attempts: int = 3,
 ) -> Optional[str]:
     """CLI-friendly wrapper — returns video URL string only."""
     result = asyncio.run(

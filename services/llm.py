@@ -210,6 +210,12 @@ def generate_visual_plan(
         beat["id"] = i
         beat["duration_sec"] = float(beat.get("duration_sec", 5))
 
+    # Cap beat count for render reliability / latency (LLM sometimes over-plans).
+    if len(beats) > 8:
+        plan["beats"] = beats[:8]
+        beats = plan["beats"]
+        log(f"  ✂️ Trimmed beat sheet to {len(beats)} beats for reliability")
+
     if duration:
         plan["target_duration_sec"] = int(duration)
     else:

@@ -51,8 +51,14 @@ Narration scripts must include `[BEAT:N]` markers (`prompts/narration_prompt.py`
 
 Merger (`services/merger.py`):
 - **Never** `atempo` / speed-adjust narration
-- Audio longer: `tpad` freeze-pad video
-- Video longer: natural audio; picture may continue after voice ends
+- Audio longer: `tpad` freeze-pad video (all `-i` first, then `-vf`)
+- Video longer: `-shortest` so output ends with narration
+- Soft subtitle tracks skipped; burn captions after mux
+
+Latency / reliability:
+- Default `MANIM_MAX_ATTEMPTS=3` (was 4); simplify plan from attempt 2
+- Cap beat sheet at 8 beats
+- If render undershoots audio by >1.5s, one pad re-render via `append_end_wait`
 
 ## Do not
 

@@ -38,7 +38,8 @@ Follow HOOK → SETUP → CORE → CONNECTION → SUMMARY across the beat sequen
   ]
 }
 
-Minimum 4 beats, maximum 12 beats."""
+Minimum 4 beats, maximum 8 beats.
+Prefer 5–7 beats — fewer beats = more reliable renders and tighter sync."""
 
 VISUAL_PLANNER_USER_TEMPLATE = """Topic: {topic}
 Engine: {engine}
