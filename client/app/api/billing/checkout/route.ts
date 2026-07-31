@@ -101,10 +101,15 @@ export async function POST(req: Request) {
           "string" &&
         (data.customer as { customer_id: string }).customer_id) ||
       undefined;
+    const sessionId =
+      (typeof data.session_id === "string" && data.session_id) ||
+      (typeof data.id === "string" && data.id) ||
+      undefined;
+    const pendingToken = sessionId ? `${plan}|${sessionId}` : plan;
     await db.user.update({
       where: { id: user.id },
       data: {
-        subscriptionStatus: `pending:${plan}`,
+        subscriptionStatus: `pending:${pendingToken}`,
         ...(customerId ? { dodoCustomerId: customerId } : {}),
       },
     });
