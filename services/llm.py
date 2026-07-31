@@ -92,9 +92,63 @@ def _strip_method_calls(code: str, method: str) -> str:
     return "".join(out)
 
 
+def _fix_nonpositive_timings(code: str) -> str:
+    """
+    Manim rejects wait/run_time <= 0. LLMs often emit self.wait(0.0) at beat
+    boundaries — drop those lines and clamp other non-positive timings.
+    """
+
+    def _as_float(raw: str) -> float | None:
+        try:
+            return float(raw)
+        except ValueError:
+            return None
+
+    out_lines: list[str] = []
+    wait_line = re.compile(
+        r"^([ \t]*)self\.wait\(\s*([-+]?[0-9]*\.?[0-9]+)\s*\)([ \t]*#.*)?\s*$"
+    )
+    for line in code.splitlines(True):
+        m = wait_line.match(line.rstrip("\n"))
+        if m:
+            val = _as_float(m.group(2))
+            if val is not None and val <= 0:
+                continue  # drop zero/negative wait lines entirely
+            if val is not None and val < 0.05:
+                comment = m.group(3) or ""
+                out_lines.append(f"{m.group(1)}self.wait(0.1){comment}\n")
+                continue
+        # Inline / play kwargs
+        def clamp_wait(mm: re.Match[str]) -> str:
+            val = _as_float(mm.group(1))
+            if val is None:
+                return mm.group(0)
+            if val <= 0:
+                return "self.wait(0.1)"
+            return mm.group(0)
+
+        def clamp_run_time(mm: re.Match[str]) -> str:
+            val = _as_float(mm.group(1))
+            if val is None:
+                return mm.group(0)
+            if val <= 0:
+                return "run_time=0.5"
+            return mm.group(0)
+
+        line = re.sub(r"self\.wait\(\s*([-+]?[0-9]*\.?[0-9]+)\s*\)", clamp_wait, line)
+        line = re.sub(r"run_time\s*=\s*([-+]?[0-9]*\.?[0-9]+)", clamp_run_time, line)
+        out_lines.append(line if line.endswith("\n") or line == "" else line + "\n")
+    # Preserve whether original ended with newline
+    result = "".join(out_lines)
+    if code and not code.endswith("\n") and result.endswith("\n"):
+        result = result[:-1]
+    return result
+
+
 def sanitize_generated_code(code: str) -> str:
     code = _strip_method_calls(code, "get_parts_by_tex")
     code = _strip_method_calls(code, "get_part_by_tex")
+    code = _fix_nonpositive_timings(code)
     return code
 
 
@@ -108,6 +162,12 @@ def sanitize_remotion_code(code: str) -> str:
     code = code.replace("export default MainComposition;", "")
     code = re.sub(r"[^\x09\x0A\x0D\x20-\x7E]", "", code)
     code = code.replace("lowest:", "0,")
+    # durationInFrames={0} → safe minimum
+    code = re.sub(
+        r"durationInFrames=\{\s*0+\s*\}",
+        "durationInFrames={1}",
+        code,
+    )
     return code.strip()
 
 

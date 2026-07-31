@@ -91,10 +91,17 @@ Debug artifacts in the job work dir: `words.json`, `beat_map.json`,
 |------|------|
 | `prompts/router_prompt.py` | manim vs remotion + duration hint |
 | `prompts/planner_prompt.py` | JSON beat sheet (HOOK→SUMMARY) |
-| `prompts/narration_prompt.py` | Flowing voiceover from beats |
+| `prompts/narration_prompt.py` | Flowing voiceover from beats (`[BEAT:N]`) |
 | `prompts/manim_prompt.py` | Sync-aware Manim code |
-| `prompts/remotion_prompt.py` | Sync-aware Remotion TSX (Easing, Series, charts) |
+| `prompts/remotion_prompt.py` | Sync-aware Remotion TSX |
 | `prompts/quality_prompt.py` | Optional pre-render judge |
+
+## Engine deep-dives
+
+| Doc | Use when |
+|-----|----------|
+| [`docs/MANIM_ENGINE.md`](./MANIM_ENGINE.md) | Manim crashes, `wait(0)`, MathTex / layout rules |
+| [`docs/REMOTION_ENGINE.md`](./REMOTION_ENGINE.md) | Remotion compile errors, frame math, clamps |
 
 **Research samples** (not loaded): `prompt-docs/*.prompt.py` — port selectively into `prompts/`.
 
@@ -105,6 +112,13 @@ Debug artifacts in the job work dir: `words.json`, `beat_map.json`,
 - Retries escalate to a simplified plan (like Manim)
 - Optional: `QUALITY_JUDGE=1` runs a cheap judge before first Remotion render
 - Duration cap for Remotion render: 180s (matches API)
+- **Never** `durationInFrames={0}` — use `Math.max(1, Math.round(sec * 30))`
+
+## Manim notes
+
+- **Never** `self.wait(0)` / `run_time=0` — Manim raises `ValueError`
+- Sanitizer drops zero waits and clamps non-positive `run_time`
+- See [`docs/MANIM_ENGINE.md`](./MANIM_ENGINE.md)
 
 ## Tuning checklist
 

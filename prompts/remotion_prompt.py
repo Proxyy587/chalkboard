@@ -9,11 +9,17 @@ Generate ONE complete TypeScript React component that ALWAYS compiles on first t
 - Self-contained: hardcode all data (no fetch, no CSS modules, no external packages)
 - Output ONLY raw TSX — no markdown fences, no commentary
 
+## HARD TIMING RULES (crash / blank if violated)
+- durationInFrames must be an integer >= 1. NEVER 0.
+- Sequence `from` must be >= 0.
+- Prefer Math.max(1, Math.round(sec * fps)) when converting seconds → frames.
+- fps = 30. Do not invent other frame rates.
+- Every interpolate() needs extrapolateLeft:'clamp', extrapolateRight:'clamp'
+- interpolate input ranges must be finite numbers (no NaN)
+
 ## Remotion LLM best practices
 - Prefer interpolate() + Easing over spring() unless a bounce is explicitly needed
-- Prefer scale / translateX / translateY / rotate as separate style numbers when possible;
-  transform strings are OK if carefully interpolated
-- Every interpolate(): extrapolateLeft: 'clamp', extrapolateRight: 'clamp'
+- Prefer scale / translateX / translateY / rotate as separate style numbers when possible
 - spring({ frame: Math.max(0, frame - delay), fps, config: { damping: 12–16, stiffness: 100 } })
 - Keep hooks inside the component (never call useCurrentFrame outside)
 
@@ -30,13 +36,11 @@ Generate ONE complete TypeScript React component that ALWAYS compiles on first t
 ## Beat sync (CRITICAL — audio is already recorded)
 The user message has a BEAT SHEET. When timing_source=tts, start_s / duration_sec
 are MEASURED from real narration — hard constraints.
-- fps = 30
-- Prefer <Series> of <Series.Sequence durationInFrames={duration_sec*30}> OR
-  <Sequence from={start_s*30} durationInFrames={duration_sec*30}>
+- Prefer <Series> of <Series.Sequence durationInFrames={Math.max(1, Math.round(duration_sec*30))}> OR
+  <Sequence from={Math.max(0, Math.round(start_s*30))} durationInFrames={Math.max(1, Math.round(duration_sec*30))}>
 - Comment each block: {/* BEAT N @ Ts (Ds) */}
-- Visual for beat N lives entirely inside that Sequence and should appear near
-  the START of the sequence (when the spoken line begins)
-- Max 12 sequences; staggered reveals — never dump all UI at frame 0
+- Visual for beat N lives entirely inside that Sequence and should appear near START
+- Max 8 sequences; staggered reveals — never dump all UI at frame 0
 - Total frames ≈ target_duration_sec * 30
 
 ## High-value patterns (use when the beat needs them)
@@ -53,6 +57,8 @@ are MEASURED from real narration — hard constraints.
 - Explicit number types in interpolate ranges
 - Define const data = [...] OUTSIDE the component if large
 - Do not use CSS transitions for timeline motion — drive everything from `frame`
+- No default export — named MainComposition only
+- No external URLs / images / fonts beyond system stack
 
 STRUCTURE SKETCH:
 import React from 'react';
@@ -80,18 +86,20 @@ COMPLEXITY: {complexity}
 BEAT SHEET (one Sequence / Series.Sequence per beat — timing MUST match):
 {visual_plan}
 
+RULES REMINDER: durationInFrames >= 1 always; clamp every interpolate.
 Return ONLY the complete TypeScript component named MainComposition.
 No markdown. No backticks."""
 
 
 REMOTION_ERROR_HINTS = """
-Common Remotion fixes:
-- Markdown fences / prose around code: output raw TSX only
+Common Remotion fixes (apply ALL that match):
+- durationInFrames={0}: use Math.max(1, Math.round(sec * 30))
+- Markdown fences / prose: output raw TSX only
 - Missing React import: import React from 'react';
 - Only remotion + react imports allowed
 - useCurrentFrame / useVideoConfig must be inside the component
-- interpolate: all inputs must be finite numbers; always clamp
+- interpolate: finite numbers only; always clamp both sides
 - spring frame delay: use Math.max(0, frame - delay)
-- Series.Sequence needs durationInFrames; Sequence needs from + durationInFrames
+- Series.Sequence needs durationInFrames >= 1; Sequence needs from >= 0 + durationInFrames >= 1
 - Prefer simpler AbsoluteFill + text/SVG if previous attempt was too complex
 """

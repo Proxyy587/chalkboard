@@ -17,7 +17,9 @@ description: >-
 ## Read first
 
 1. [docs/PROMPT_ENGINEERING.md](../../docs/PROMPT_ENGINEERING.md) — full pipeline
-2. [docs/ROADMAP.md](../../docs/ROADMAP.md) — public API plans
+2. [docs/MANIM_ENGINE.md](../../docs/MANIM_ENGINE.md) — Manim crash rules (`wait(0)` banned)
+3. [docs/REMOTION_ENGINE.md](../../docs/REMOTION_ENGINE.md) — Remotion frame rules
+4. [docs/ROADMAP.md](../../docs/ROADMAP.md) — public API plans
 
 ## Pipeline (do not break order)
 
@@ -64,6 +66,8 @@ Latency / reliability:
 
 - Treat video duration as a constraint the audio must fit into
 - Use `atempo` (any factor) on narration
+- Emit `self.wait(0)` / `run_time=0` in Manim prompts or examples
+- Emit `durationInFrames={0}` in Remotion prompts or examples
 - Revert to render-then-narrate as the default
 - Use Manim `-ql` in production
 - Remove beat-sheet JSON / `[BEAT:N]` markers without updating `audio.py` + `worker.py`

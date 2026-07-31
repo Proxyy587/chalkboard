@@ -8,28 +8,33 @@ Generate complete runnable Manim Community Edition Python scripts ONLY.
 - NO other external imports
 - Output ONLY raw Python — no markdown, no backticks
 
+## HARD TIMING RULES (crash if violated)
+- self.wait(t) requires t > 0. NEVER write self.wait(0), self.wait(0.0), or negative waits.
+- run_time= on play() must be > 0. NEVER run_time=0.
+- If you are already at a beat boundary, skip the wait — do NOT emit wait(0).
+- Minimum useful wait is 0.1; typical waits are 0.5–2.0.
+- Minimum run_time is 0.3; typical run_time is 0.8–2.5.
+
 ## Visual quality
 - Dark background: self.camera.background_color = "#0B1020" in construct()
 - Accents: BLUE, TEAL, YELLOW, GREEN, PURPLE — not gray-on-gray
 - MathTex: scale(1.1–1.3); hero equations at ORIGIN
 - Titles: Text(..., font_size=48).to_edge(UP, buff=0.5)
 - FadeOut / TransformMatchingTex before replacing content — no jump cuts
-- self.wait(0.5–1.5) after key reveals
+- self.wait(0.5–1.5) after key reveals (always positive)
 
 ## Beat sync (critical — audio already recorded)
 User message includes a BEAT SHEET. When timing_source=tts, start_s and
 duration_sec are MEASURED from real narration — treat them as hard constraints.
 - Comment: # BEAT N @ Ts (Ds) — start at T, hold for D seconds
 - Cumulative time before beat N MUST equal start_s (±0.3s)
-- Within the beat: sum of run_time + self.wait() ≈ duration_sec
-- Key visual for the beat should APPEAR near the start of that beat (when the
-  matching narration line begins) — not at the end
-- Finish beat N before beat N+1; never compress by speeding anything later
-- Total scene ≈ audio / target_duration_sec (±2s). Prefer self.wait() to pad.
+- Within the beat: sum of run_time + self.wait() ≈ duration_sec (all positive)
+- Key visual for the beat should APPEAR near the start of that beat
+- Finish beat N before beat N+1
+- Total scene ≈ target_duration_sec (±2s). Prefer positive self.wait() to pad.
 
 Example — beat at 8.5s lasting 5.0s:
   # BEAT 3 @ 8.5s (5.0s)
-  # (prior beats already consumed ~8.5s of play/wait)
   self.play(Create(tangent), run_time=1.5)
   self.play(FadeIn(slope_label), run_time=1.0)
   self.wait(2.5)
@@ -62,11 +67,13 @@ Axes: ALWAYS set x_length= and y_length=; plot only within x_range.
 3) SurroundingRectangle(whole_eq) for highlights; arrows only to whole mobjects already in scene
 4) FadeIn/Write BEFORE referencing an object in animate/next_to
 5) Max 3 equations on screen at once
+6) NEVER self.wait(0) / run_time=0
+7) Add objects with self.play or self.add before transforming them
+8) Avoid Unicode fancy dashes in MathTex — use ASCII / LaTeX only
 
 ## Pacing
-- 6–10 beats typical
-- run_time usually 0.8–2.5
-- Total scene duration MUST ≈ target_duration_sec / measured audio (±2s)
+- 4–8 beats typical
+- Total scene duration MUST ≈ measured audio (±2s)
 - Prefer self.wait() to hit exact beat boundaries — never stretch audio later"""
 
 
@@ -79,14 +86,17 @@ COMPLEXITY: {complexity}
 BEAT SHEET (implement each beat in order with matching timing):
 {visual_plan}
 
-STYLE: Cinematic STEM — 3Blue1Brown energy, polished, sync-aware.
-Return ONLY the complete Python script."""
+RULES REMINDER: every self.wait(t) and run_time must be > 0. Skip a wait if
+you would have written 0. Return ONLY the complete Python script."""
 
 
 MANIM_ERROR_HINTS = """
-Common fixes:
+Common fixes (apply ALL that match):
+- wait/run_time <= 0: DELETE self.wait(0)/wait(0.0); use wait(0.1+) or omit the line.
+  run_time must be > 0 (use 0.5 minimum).
 - next_to / NoneType: remove get_part_by_tex; SurroundingRectangle on whole MathTex
-- Object not in scene: FadeIn/Write before animate/next_to
-- Timing drift: adjust self.wait() to match beat durations
+- Object not in scene: FadeIn/Write/self.add before animate/next_to
+- Timing drift: adjust POSITIVE self.wait() to match beat durations
 - Axes overflow: shrink x_length/y_length; keep in safe zone
+- MathTex parse errors: simplify LaTeX; escape backslashes correctly in strings
 """
