@@ -1,3 +1,7 @@
+"""Mux narration onto rendered video — never alter speaking tempo."""
+
+from __future__ import annotations
+
 import os
 import shutil
 import subprocess
@@ -11,7 +15,6 @@ def _has_ffmpeg_filter(name: str) -> bool:
             text=True,
             check=True,
         )
-        # Match whole filter names like " subtitles " in ffmpeg -filters output.
         return f" {name} " in f" {result.stdout} "
     except Exception:
         return False
@@ -27,35 +30,34 @@ def merge_video_audio_captions(
     log=print,
 ) -> str:
     """
-    Merge narration onto video.
+    Merge narration onto video with NO speed adjustment (atempo forbidden).
 
-    Critical: Remotion outputs often include a silent AAC track.
-    Always map:
-      - video from input 0
-      - audio from input 1 (narration)
-    Never keep Remotion's silent audio.
+    Voice length is sacred. Timing sync must come from beat-timed codegen.
+
+    Mismatch policy:
+      - Audio longer than video → freeze-pad last video frame (tpad)
+      - Video longer than audio → keep natural audio; video continues after voice
+        ends (no -shortest trim that fights beat sync; no voice stretch)
     """
-    log("Step 5/6: Merging video + narration with ffmpeg...")
+    log("Step 5/6: Merging video + narration (natural tempo, no atempo)...")
     final_path = video_path.replace(".mp4", "_final.mp4")
 
-    atempo = 1.0
     pad_video_sec = 0.0
     if audio_duration > 0 and video_duration > 0:
-        ratio = audio_duration / video_duration
-        if 0.80 <= ratio <= 1.20:
-            atempo = max(0.5, min(2.0, ratio))
-        elif ratio > 1.20:
-            # Audio longer — pad video with frozen last frame
-            pad_video_sec = audio_duration - video_duration
-            atempo = 1.0
+        delta = audio_duration - video_duration
+        if delta > 0.15:
+            pad_video_sec = delta
+            log(
+                f"  🧊 Audio longer by {pad_video_sec:.2f}s — "
+                f"freeze-pad video, natural voice"
+            )
+        elif delta < -0.15:
+            log(
+                f"  🎞️ Video longer by {-delta:.2f}s — "
+                f"keeping natural voice; picture continues after narration"
+            )
         else:
-            # Video longer — speed up narration to fit
-            atempo = max(0.5, min(2.0, ratio))
-
-    audio_filter_parts = []
-    if abs(atempo - 1.0) > 0.01:
-        audio_filter_parts.append(f"atempo={atempo:.4f}")
-    audio_filter = ",".join(audio_filter_parts) if audio_filter_parts else None
+            log(f"  ✅ Durations already close (Δ={delta:.2f}s) — clean mux")
 
     video_abs = os.path.abspath(video_path)
     audio_abs = os.path.abspath(audio_path)
@@ -67,7 +69,6 @@ def merge_video_audio_captions(
     def _run_audio_merge(include_soft_subs: bool) -> None:
         cmd = ["ffmpeg", "-y"]
         if pad_video_sec > 0.05:
-            # Clone last frame to extend video to match narration length
             vf = f"tpad=stop_mode=clone:stop_duration={pad_video_sec:.3f}"
             cmd.extend(["-i", video_abs, "-vf", vf])
         else:
@@ -80,12 +81,10 @@ def merge_video_audio_captions(
         if include_soft_subs and srt_abs:
             cmd.extend(["-map", "2:0"])
 
-        if audio_filter:
-            cmd.extend(["-af", audio_filter])
-
+        # No atempo. No -shortest — let padded video cover full narration,
+        # or let slightly-long video finish after voice ends.
         cmd.extend(
             [
-                "-shortest",
                 "-c:v",
                 "libx264" if pad_video_sec > 0.05 else "copy",
                 "-preset",
@@ -105,10 +104,15 @@ def merge_video_audio_captions(
         if include_soft_subs and srt_abs:
             cmd.extend(["-c:s", "mov_text", "-metadata:s:s:0", "language=eng"])
 
+        # When video is longer and we didn't pad, duration follows video.
+        # When we padded, video ≈ audio. Explicit -t to audio length when padded
+        # keeps trailing silence from an overshot pad from mattering.
+        if pad_video_sec > 0.05 and audio_duration > 0:
+            cmd.extend(["-t", f"{audio_duration:.3f}"])
+
         cmd.extend(["-movflags", "+faststart", final_abs])
         subprocess.run(cmd, check=True, capture_output=True, text=True)
 
-    # 1) Try soft-mux captions (no libass needed)
     if srt_abs:
         try:
             _run_audio_merge(include_soft_subs=True)
@@ -132,7 +136,6 @@ def merge_video_audio_captions(
                 f.write(err)
             raise RuntimeError(f"ffmpeg audio merge failed: {err}") from e
 
-    # 2) Optional burned captions only if ffmpeg has libass/subtitles filter (Docker)
     if srt_abs and _has_ffmpeg_filter("subtitles"):
         burned = final_abs.replace("_final.mp4", "_final_subs.mp4")
         escaped_srt = srt_abs.replace("\\", "/").replace(":", "\\:").replace("'", "\\'")

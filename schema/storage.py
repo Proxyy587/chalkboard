@@ -9,13 +9,17 @@ from pydantic import BaseModel, Field, model_validator
 
 class InlineR2Storage(BaseModel):
     provider: Literal["r2"] = "r2"
-    bucket: str = Field(..., min_length=1)
+    bucket: str = Field(..., min_length=1, description="R2 bucket name")
     access_key_id: str = Field(..., min_length=1)
     secret_access_key: str = Field(..., min_length=1)
-    account_id: str = Field(..., min_length=1, description="Cloudflare account ID")
+    account_id: str = Field(
+        ...,
+        min_length=1,
+        description="Cloudflare account ID (used to build the S3 API endpoint)",
+    )
     public_url: Optional[str] = Field(
         default=None,
-        description="Public CDN base URL, e.g. https://pub-xxx.r2.dev",
+        description="Public base URL for returned video_url, e.g. https://pub-xxx.r2.dev",
     )
 
 
@@ -29,19 +33,26 @@ class InlineS3Storage(BaseModel):
         default=None,
         description="Required for MinIO / custom S3-compatible endpoints",
     )
-    public_url: Optional[str] = None
-    force_path_style: bool = True
+    public_url: Optional[str] = Field(
+        default=None,
+        description="Public CDN/base URL used to build the returned video_url",
+    )
+    force_path_style: bool = Field(
+        default=True,
+        description="Prefer path-style addressing (typical for MinIO)",
+    )
 
 
 class VideoStorageRequest(BaseModel):
     """
-    Where to upload the finished video.
+    Where to upload the finished video (public API).
 
     Priority (first match wins):
-    1. `inline` — credentials in this request (never stored, job-scoped only)
-    2. `integration_id` — saved integration from Settings (must belong to API key owner)
-    3. User's default saved integration (if authenticated with chalk_* key)
-    4. Server default R2 env vars
+    1. `inline` — credentials in this request (job-scoped, never stored)
+  2. `integration_id` — saved integration from Settings → Storage
+  3. Master key (`CLARITY_API_KEY`) → server .env R2 (owner only)
+  4. User's default saved integration (if any)
+  5. Otherwise → 400 error (no shared bucket for public keys)
     """
 
     inline: Optional[
@@ -52,7 +63,7 @@ class VideoStorageRequest(BaseModel):
     ] = None
     integration_id: Optional[str] = Field(
         default=None,
-        description="ID from Settings → Storage (saved & encrypted)",
+        description="Saved integration id from Settings → Storage",
     )
 
     @model_validator(mode="after")

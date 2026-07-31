@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 import boto3
 from botocore.client import Config
 
-from services.user_storage import UserStorageConfig, get_active_storage_for_user
+from services.user_storage import UserStorageConfig
 
 
 def r2_config_status() -> dict:
@@ -45,9 +45,9 @@ def _resolve_r2_settings() -> tuple[str, str, str, str, str]:
 
     if not all([bucket, access_key, secret_key, public_base, endpoint_url]):
         raise RuntimeError(
-            "Missing R2/S3 env vars. Required: R2_BUCKET_NAME, R2_ACCESS_KEY_ID, "
-            "R2_SECRET_ACCESS_KEY, R2_PUBLIC_BASE_URL, and AWS_ENDPOINT_URL_S3 "
-            "(or R2_ACCOUNT_ID). Check docker-compose env_file / .env on the VPS."
+            "Platform storage is not configured on this server. Missing R2/S3 env vars "
+            "(R2_BUCKET_NAME, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_PUBLIC_BASE_URL, "
+            "and AWS_ENDPOINT_URL_S3 or R2_ACCOUNT_ID)."
         )
 
     parsed = urlparse(endpoint_url)
@@ -58,22 +58,39 @@ def _resolve_r2_settings() -> tuple[str, str, str, str, str]:
 def _s3_client_from_user(cfg: UserStorageConfig):
     creds = cfg.credentials
     provider = cfg.provider.upper()
+    force_path = bool(creds.get("forcePathStyle") or creds.get("force_path_style"))
+
     if provider == "R2":
         account_id = creds.get("accountId") or creds.get("account_id")
+        if not account_id:
+            raise RuntimeError("R2 storage requires accountId / account_id.")
         endpoint = f"https://{account_id}.r2.cloudflarestorage.com"
         region = "auto"
+        force_path = False
+    elif provider == "UPLOADTHING":
+        raise RuntimeError(
+            "UploadThing uploads are not available on the public API yet. "
+            "Use R2, S3, MinIO, Backblaze, or custom_s3 with storage.inline."
+        )
     else:
-        endpoint = creds.get("endpoint")
+        endpoint = creds.get("endpoint") or creds.get("endpointUrl")
         region = creds.get("region") or "us-east-1"
+        if not endpoint and provider in {"MINIO", "CUSTOM_S3", "BACKBLAZE"}:
+            raise RuntimeError(f"{provider} storage requires an endpoint URL.")
 
-    return boto3.client(
+    client = boto3.client(
         "s3",
-        endpoint_url=endpoint,
+        endpoint_url=endpoint or None,
         aws_access_key_id=creds.get("accessKeyId") or creds.get("access_key_id"),
         aws_secret_access_key=creds.get("secretAccessKey") or creds.get("secret_access_key"),
-        config=Config(signature_version="s3v4"),
+        config=Config(
+            signature_version="s3v4",
+            s3={"addressing_style": "path" if force_path else "auto"},
+        ),
         region_name=region,
-    ), cfg.bucket_name, cfg.public_url
+    )
+    public_base = cfg.public_url or creds.get("publicUrl") or creds.get("public_url")
+    return client, cfg.bucket_name, public_base
 
 
 def _upload_with_s3_client(
@@ -107,7 +124,16 @@ def upload_to_r2(
     log=print,
     user_id: str | None = None,
     storage_override: UserStorageConfig | None = None,
+    use_platform_storage: bool = False,
 ) -> str:
+    """
+    Upload a finished video.
+
+    - storage_override: user inline / saved integration (no env fallback)
+    - use_platform_storage: master key → server .env R2 only
+    """
+    del user_id  # reserved; destination is fully decided before upload
+
     if not os.path.isfile(file_path):
         raise FileNotFoundError(f"Cannot upload missing file: {file_path}")
 
@@ -120,32 +146,41 @@ def upload_to_r2(
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
         object_key = f"videos/{stamp}-{os.path.basename(file_path)}"
 
-    # Explicit per-job storage (inline API creds or chosen integration)
-    user_cfg = storage_override
-    if not user_cfg and user_id:
-        user_cfg = get_active_storage_for_user(user_id)
-
-    if user_cfg and user_cfg.provider.upper() != "UPLOADTHING":
+    if storage_override:
+        if storage_override.provider.upper() == "UPLOADTHING":
+            raise RuntimeError(
+                "UploadThing is not supported for API uploads yet. "
+                "Use R2 / S3-compatible storage.inline."
+            )
         try:
-            client, bucket, public_base = _s3_client_from_user(user_cfg)
-            label = "inline" if user_cfg.integration_id == "inline" else user_cfg.integration_id
+            client, bucket, public_base = _s3_client_from_user(storage_override)
+            label = (
+                "inline"
+                if storage_override.integration_id == "inline"
+                else storage_override.integration_id
+            )
             log(f"  📦 Uploading to user storage ({label})")
             return _upload_with_s3_client(
                 client, bucket, public_base, file_path, object_key, log=log
             )
         except Exception as e:
-            if storage_override:
-                raise RuntimeError(f"User storage upload failed: {e}") from e
-            log(f"  ⚠️ User storage upload failed, falling back to default: {e}")
+            raise RuntimeError(f"User storage upload failed: {e}") from e
 
-    bucket, access_key, secret_key, public_base, endpoint_url = _resolve_r2_settings()
+    if use_platform_storage:
+        log("  📦 Uploading to platform storage (.env R2)")
+        bucket, access_key, secret_key, public_base, endpoint_url = _resolve_r2_settings()
+        client = boto3.client(
+            "s3",
+            endpoint_url=endpoint_url,
+            aws_access_key_id=access_key,
+            aws_secret_access_key=secret_key,
+            config=Config(signature_version="s3v4"),
+            region_name="auto",
+        )
+        return _upload_with_s3_client(
+            client, bucket, public_base, file_path, object_key, log=log
+        )
 
-    client = boto3.client(
-        "s3",
-        endpoint_url=endpoint_url,
-        aws_access_key_id=access_key,
-        aws_secret_access_key=secret_key,
-        config=Config(signature_version="s3v4"),
-        region_name="auto",
+    raise RuntimeError(
+        "No storage destination for this job. Pass storage.inline or use the master key."
     )
-    return _upload_with_s3_client(client, bucket, public_base, file_path, object_key, log=log)

@@ -27,14 +27,17 @@ Generate ONE complete TypeScript React component that ALWAYS compiles on first t
 - Cards: rgba(255,255,255,0.05) bg, 1px rgba(255,255,255,0.1) border, 16–24px radius
 - Avoid heavy glow spam / drop-shadow filters that can slow render
 
-## Beat sync (CRITICAL — audio is recorded from this sheet)
-The user message has a BEAT SHEET. Map EVERY beat to timing:
+## Beat sync (CRITICAL — audio is already recorded)
+The user message has a BEAT SHEET. When timing_source=tts, start_s / duration_sec
+are MEASURED from real narration — hard constraints.
 - fps = 30
-- Prefer <Series> of <Series.Sequence durationInFrames={sec*30}> OR
-  <Sequence from={sumPrior*30} durationInFrames={sec*30}>
-- Comment each block: {/* BEAT N */}
-- Visual for beat N lives entirely inside that Sequence
+- Prefer <Series> of <Series.Sequence durationInFrames={duration_sec*30}> OR
+  <Sequence from={start_s*30} durationInFrames={duration_sec*30}>
+- Comment each block: {/* BEAT N @ Ts (Ds) */}
+- Visual for beat N lives entirely inside that Sequence and should appear near
+  the START of the sequence (when the spoken line begins)
 - Max 12 sequences; staggered reveals — never dump all UI at frame 0
+- Total frames ≈ target_duration_sec * 30
 
 ## High-value patterns (use when the beat needs them)
 1) Fade + slide entrance:

@@ -1,6 +1,10 @@
 # Clarity Video Service — Deploy & Integrate Guide
 
-This service turns a text prompt into a narrated educational video using:
+> **Going public with the full product (Vercel web + this worker)?**  
+> Start with **[`client/DEPLOY.md`](./client/DEPLOY.md)** — secrets, Neon, encryption, smoke tests.
+
+This file focuses on the **Python video worker** (Docker / VPS).
+
 
 - **Manim** → math / physics / LaTeX / geometric animation
 - **Remotion** → charts / timelines / modern UI-style explainers
@@ -93,6 +97,10 @@ R2_PUBLIC_BASE_URL=https://pub-xxxx.r2.dev
 # API security / CORS
 CLARITY_API_KEY=make-a-long-random-string
 ALLOWED_ORIGINS=*
+
+# Shared with Next.js (encrypted user storage + chalk_* keys)
+DATABASE_URL=postgresql://...
+SECRET_ENCRYPTION_KEY=at-least-32-chars-same-as-vercel
 
 # Storage policy
 # local  → keep files under ./outputs (dev)

@@ -124,16 +124,34 @@ def _parse_json_object(text: str) -> dict[str, Any]:
 
 def format_beat_sheet_for_prompt(plan: dict[str, Any]) -> str:
     """Human-readable beat block for code/narration prompts."""
+    timing_src = plan.get("timing_source") or "planner"
+    audio_dur = plan.get("audio_duration_sec")
     lines = [
         f"Title: {plan.get('title', 'Untitled')}",
         f"Target duration: {plan.get('target_duration_sec', '?')}s",
+        f"Timing source: {timing_src}"
+        + (f" (measured audio {audio_dur}s)" if audio_dur is not None else ""),
         f"Style: {plan.get('style_notes', '')}",
+        "",
+        "IMPORTANT: When timing_source=tts, start_s / duration_sec are MEASURED from "
+        "real narration. Animations for each beat MUST begin at start_s and fill "
+        "exactly duration_sec (run_time + wait). Do not invent new timings.",
         "",
     ]
     for beat in plan.get("beats", []):
         bid = beat.get("id", "?")
         dur = beat.get("duration_sec", "?")
-        lines.append(f"--- BEAT {bid} ({dur}s) ---")
+        start = beat.get("start_s")
+        end = beat.get("end_s")
+        if start is not None and end is not None:
+            lines.append(
+                f"--- BEAT {bid} @ {float(start):.1f}s–{float(end):.1f}s "
+                f"({dur}s) ---"
+            )
+            lines.append(f"START AT: {float(start):.1f}s")
+            lines.append(f"HOLD FOR: {dur}s (until {float(end):.1f}s)")
+        else:
+            lines.append(f"--- BEAT {bid} ({dur}s) ---")
         lines.append(f"Visual: {beat.get('visual', '')}")
         lines.append(f"Narration: {beat.get('narration', '')}")
         lines.append("")
@@ -211,7 +229,9 @@ def generate_narration_script(
     model: str = DEFAULT_MODEL,
     log=print,
 ) -> str:
-    """Polish beat narrations into one script aligned to target duration."""
+    """Polish beat narrations into a [BEAT:N]-marked script for timestamp sync."""
+    from services.beat_timing import ensure_beat_markers
+
     log("Generating narration script from beat sheet...")
     duration = target_duration or beat_sheet_target_duration(visual_plan)
     target_words = int(duration * 2.3)
@@ -219,7 +239,8 @@ def generate_narration_script(
     beat_lines = []
     for beat in visual_plan.get("beats", []):
         beat_lines.append(
-            f"Beat {beat.get('id')} ({beat.get('duration_sec')}s): {beat.get('narration', '')}"
+            f"[BEAT:{beat.get('id')}] ({beat.get('duration_sec')}s): "
+            f"{beat.get('narration', '')}"
         )
 
     user_msg = NARRATION_USER_TEMPLATE.format(
@@ -236,11 +257,13 @@ def generate_narration_script(
             {"role": "user", "content": user_msg},
         ],
     )
-    script = response.choices[0].message.content.strip()
+    script = ensure_beat_markers(
+        response.choices[0].message.content.strip(), visual_plan
+    )
     script_path = os.path.join(output_dir, "narration_script.txt")
     with open(script_path, "w", encoding="utf-8") as f:
         f.write(script + "\n")
-    log(f"  ✔️ Narration script saved ({len(script.split())} words)")
+    log(f"  ✔️ Narration script saved ({len(script.split())} words, beat markers on)")
     return script
 
 

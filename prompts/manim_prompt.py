@@ -16,17 +16,23 @@ Generate complete runnable Manim Community Edition Python scripts ONLY.
 - FadeOut / TransformMatchingTex before replacing content — no jump cuts
 - self.wait(0.5–1.5) after key reveals
 
-## Beat sync (critical)
-User message includes a BEAT SHEET with duration_sec per beat.
-- Comment: # BEAT N (Xs)
-- Sum of run_time + self.wait() within beat ≈ duration_sec
-- Finish beat N animations before beat N+1
-- Narration is separate TTS — visuals must HOLD for the spoken line
+## Beat sync (critical — audio already recorded)
+User message includes a BEAT SHEET. When timing_source=tts, start_s and
+duration_sec are MEASURED from real narration — treat them as hard constraints.
+- Comment: # BEAT N @ Ts (Ds) — start at T, hold for D seconds
+- Cumulative time before beat N MUST equal start_s (±0.3s)
+- Within the beat: sum of run_time + self.wait() ≈ duration_sec
+- Key visual for the beat should APPEAR near the start of that beat (when the
+  matching narration line begins) — not at the end
+- Finish beat N before beat N+1; never compress by speeding anything later
+- Total scene ≈ audio / target_duration_sec (±2s). Prefer self.wait() to pad.
 
-Example 5s beat:
-  self.play(Write(title), run_time=1.5)
-  self.play(FadeIn(eq), run_time=1.5)
-  self.wait(2.0)
+Example — beat at 8.5s lasting 5.0s:
+  # BEAT 3 @ 8.5s (5.0s)
+  # (prior beats already consumed ~8.5s of play/wait)
+  self.play(Create(tangent), run_time=1.5)
+  self.play(FadeIn(slope_label), run_time=1.0)
+  self.wait(2.5)
 
 ## Coordinate system & layout
 Frame ≈ 14.2 × 8. Safe zone: X ∈ [-6, 6], Y ∈ [-3.2, 3.2]
@@ -60,7 +66,8 @@ Axes: ALWAYS set x_length= and y_length=; plot only within x_range.
 ## Pacing
 - 6–10 beats typical
 - run_time usually 0.8–2.5
-- Total scene duration ≈ target_duration_sec (±3s)"""
+- Total scene duration MUST ≈ target_duration_sec / measured audio (±2s)
+- Prefer self.wait() to hit exact beat boundaries — never stretch audio later"""
 
 
 MANIM_USER_TEMPLATE = """Create a Manim animation for:

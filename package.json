@@ -1,7 +1,7 @@
 {
   "name": "manimotion",
   "private": true,
-  "description": "Monorepo root. The Next.js web app is in client/. Deploy with Vercel Root Directory = client. Python worker runs on VPS separately.",
+  "description": "Monorepo root. Next.js app is in client/ — Vercel Root Directory must be \"client\". Python worker runs on VPS.",
   "scripts": {
     "dev": "bun run --cwd client dev",
     "build": "bun run --cwd client build",

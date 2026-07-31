@@ -9,16 +9,19 @@ User prompt
     ↓
 Router (engine + optional duration)
     ↓
-Beat-sheet planner (visual + narration + timing per beat)
+Beat-sheet planner (visual + narration + estimated timing)
     ↓
-Narration polish → TTS (audio length known)
+Narration polish with [BEAT:N] markers
     ↓
-Manim / Remotion code (timed to beats + audio)
+TTS (edge-tts) → word timestamps → measured beat_map
     ↓
-Render → ffmpeg merge (sync) → R2 upload
+Manim / Remotion code (timed to measured start_s / duration_sec)
+    ↓
+Render → ffmpeg merge (NO atempo) → R2 upload
 ```
 
-**Key insight:** Quality and sync come from the **beat sheet**, not from hoping the LLM guesses timing after render.
+**Key insight:** Voice tempo is sacred. Audio is generated first; measured beat
+timestamps drive animation timing. Never stretch narration to fit the picture.
 
 ## The beat sheet
 
@@ -26,17 +29,20 @@ Every video is planned as sequential **beats**. Each beat has:
 
 | Field | Purpose |
 |-------|---------|
-| `duration_sec` | How long this moment lasts |
+| `duration_sec` | How long this moment lasts (planner estimate → then TTS-measured) |
+| `start_s` / `end_s` | Filled after TTS from word timestamps |
 | `visual` | Exactly what appears and how it animates |
 | `narration` | Words spoken during this beat |
 
 Rules:
 - Beats are sequential; durations sum to `target_duration_sec`
 - ~2.3 words/second for narration (5s beat ≈ 11 words)
+- Narration scripts include `[BEAT:N]` markers for timestamp alignment
 - Manim: no sub-part equation highlights (whole `MathTex` only)
 - Remotion: one `Sequence` per beat
 
 Prompt file: `prompts/planner_prompt.py`
+Timing: `services/beat_timing.py` + `services/audio.py`
 
 ## Duration policy
 
@@ -46,16 +52,21 @@ Prompt file: `prompts/planner_prompt.py`
 | `duration` set | Beat sheet must sum to that length (±2s) |
 
 Do **not** default to 60 seconds. Length should match teaching depth.
+After TTS, code target duration = **measured audio length**.
 
 ## Audio ↔ video sync
 
-1. **Plan** narrations per beat before rendering
-2. **TTS** narration → measure `audio_duration`
-3. **Code** targets `max(plan_duration, audio_duration)`
-4. **Merge** (`services/merger.py`):
-   - Within 20%: gentle `atempo` on audio
+1. **Plan** narrations per beat
+2. **Polish** script with `[BEAT:N]` markers
+3. **TTS** → word timestamps → `beat_map` (`start_s`, `duration_sec`)
+4. **Rewrite** beat sheet with measured timings (`timing_source=tts`)
+5. **Code** animations to start at each `start_s` and hold `duration_sec`
+6. **Merge** (`services/merger.py`) — **never** `atempo`:
    - Audio longer: pad video (`tpad` freeze last frame)
-   - Video longer: speed narration with `atempo`
+   - Video longer: keep natural voice; picture may continue after audio ends
+
+Debug artifacts in the job work dir: `words.json`, `beat_map.json`,
+`narration_marked.txt`.
 
 ## Visual quality levers
 

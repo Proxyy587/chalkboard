@@ -6,6 +6,7 @@ from typing import Any, Optional
 
 from router import route_prompt
 from services.audio import generate_audio_with_captions
+from services.beat_timing import apply_measured_timings_to_plan
 from services.config import cleanup_job_dir, job_work_dir, keep_local_outputs, storage_policy
 from services.llm import (
     DEFAULT_MODEL,
@@ -21,10 +22,52 @@ from services.remotion_renderer import render_remotion
 from services.renderer import get_media_duration, render_video
 from services.storage import upload_to_r2
 from services.user_storage import UserStorageConfig
+import subprocess
 
 
 def log(msg: str):
     print(msg, flush=True)
+
+
+def _apply_plan_quality(
+    video_path: str,
+    output_dir: str,
+    *,
+    watermark: bool,
+    max_height: int,
+    log_fn=log,
+) -> str:
+    """
+    Free-tier polish: downscale to 720p and burn a light watermark.
+    Paid / master: return path unchanged.
+    """
+    if not watermark and max_height >= 1080:
+        return video_path
+    if not video_path or not os.path.isfile(video_path):
+        return video_path
+
+    out = os.path.join(output_dir, "final_tier.mp4")
+    filters: list[str] = []
+    if max_height < 1080:
+        filters.append(f"scale=-2:{max_height}")
+    if watermark:
+        # Escaped drawtext for ffmpeg
+        filters.append(
+            "drawtext=text='manimotion':fontsize=28:fontcolor=white@0.45:"
+            "x=w-tw-40:y=h-th-36"
+        )
+    vf = ",".join(filters) if filters else None
+    cmd = ["ffmpeg", "-y", "-i", video_path]
+    if vf:
+        cmd += ["-vf", vf]
+    cmd += ["-c:a", "copy", "-movflags", "+faststart", out]
+    try:
+        subprocess.run(cmd, check=True, capture_output=True, text=True)
+        log_fn(f"  🏷️ Plan quality applied (h≤{max_height}, watermark={watermark})")
+        return out
+    except Exception as exc:
+        log_fn(f"  ⚠️ Plan quality step skipped: {exc}")
+        return video_path
 
 
 def _r2_object_key(job_id: str, suffix: str = "final") -> str:
@@ -176,6 +219,7 @@ def _upload_and_maybe_cleanup(
     work_dir: str,
     user_id: Optional[str] = None,
     storage_override: Optional[UserStorageConfig] = None,
+    use_platform_storage: bool = False,
 ) -> str:
     """Upload to R2/S3, then wipe the job work dir on VPS."""
     if not local_path or not os.path.isfile(local_path):
@@ -187,17 +231,18 @@ def _upload_and_maybe_cleanup(
             log=log,
             user_id=user_id,
             storage_override=storage_override,
+            use_platform_storage=use_platform_storage,
         )
     except Exception as e:
         # Still free disk on VPS even if upload fails
         cleanup_job_dir(work_dir, log=log)
-        raise RuntimeError(f"R2 upload failed: {e}") from e
+        raise RuntimeError(f"Storage upload failed: {e}") from e
 
     cleanup_job_dir(work_dir, log=log)
     if keep_local_outputs():
         log(f"  💾 Keeping local outputs ({storage_policy()['clarity_env']})")
     else:
-        log("  🧹 Local job files removed after R2 upload (VPS mode)")
+        log("  🧹 Local job files removed after upload (VPS mode)")
     return url
 
 
@@ -209,8 +254,11 @@ async def process_topic_async(
     job_id: Optional[str] = None,
     user_id: Optional[str] = None,
     storage_override: Optional[UserStorageConfig] = None,
+    use_platform_storage: bool = False,
     max_attempts: int = 4,
     status_cb=None,
+    watermark: bool = False,
+    max_height: int = 1080,
 ) -> dict:
     """
     Full Clarity video pipeline.
@@ -257,7 +305,8 @@ async def process_topic_async(
         plan_duration = int(beat_sheet_target_duration(visual_plan))
         log(f"Beat sheet ready: {len(visual_plan.get('beats', []))} beats, ~{plan_duration}s")
 
-        # 2) Narration + TTS BEFORE render so audio length guides animation target
+        # 2) Narration with [BEAT:N] markers → TTS + word timestamps → beat_map
+        #    Audio drives the timeline; video is generated to match (no atempo).
         set_status("generating_audio", engine=chosen_engine)
         narration_script = generate_narration_script(
             topic=subject,
@@ -267,19 +316,28 @@ async def process_topic_async(
             model=model,
             log=log,
         )
-        audio_path, srt_path, audio_duration = await generate_audio_with_captions(
-            narration_script, output_dir=work_dir, log=log
+        audio_path, srt_path, audio_duration, beat_map = await generate_audio_with_captions(
+            narration_script,
+            output_dir=work_dir,
+            log=log,
+            visual_plan=visual_plan,
         )
-        code_duration = int(round(max(plan_duration, audio_duration)))
-        log(f"Audio {audio_duration:.1f}s → code target {code_duration}s")
+        timed_plan = apply_measured_timings_to_plan(
+            visual_plan, beat_map, audio_duration
+        )
+        code_duration = int(round(audio_duration)) if audio_duration > 0 else plan_duration
+        log(
+            f"Audio {audio_duration:.1f}s → measured {len(beat_map)} beats → "
+            f"code target {code_duration}s (voice tempo untouched)"
+        )
 
-        # 3) Generate + render video synced to beat sheet + audio length
+        # 3) Generate + render video timed to measured beat timestamps
         set_status("generating_code", engine=chosen_engine)
         if chosen_engine == "remotion":
             video, render_err = await _run_remotion_pipeline(
                 topic=subject,
                 model=model,
-                visual_plan=visual_plan,
+                visual_plan=timed_plan,
                 duration=code_duration,
                 complexity=complexity,
                 job_id=job_id,
@@ -290,7 +348,7 @@ async def process_topic_async(
             video, render_err = await _run_manim_pipeline(
                 topic=subject,
                 model=model,
-                visual_plan=visual_plan,
+                visual_plan=timed_plan,
                 duration=code_duration,
                 complexity=complexity,
                 output_dir=work_dir,
@@ -305,6 +363,14 @@ async def process_topic_async(
 
         log(f"✅ Base video: {video}")
         video_duration = get_media_duration(video)
+        if audio_duration > 0 and video_duration > 0:
+            drift = abs(video_duration - audio_duration)
+            if drift > 2.0:
+                log(
+                    f"  ⚠️ Duration drift {drift:.1f}s "
+                    f"(video {video_duration:.1f}s vs audio {audio_duration:.1f}s) — "
+                    f"merging without speed change"
+                )
 
         set_status("merging", engine=chosen_engine)
         final_video = merge_video_audio_captions(
@@ -317,6 +383,14 @@ async def process_topic_async(
             log=log,
         )
 
+        final_video = _apply_plan_quality(
+            final_video,
+            work_dir,
+            watermark=watermark,
+            max_height=max_height,
+            log_fn=log,
+        )
+
         set_status("uploading", engine=chosen_engine)
         video_url = _upload_and_maybe_cleanup(
             final_video,
@@ -324,13 +398,14 @@ async def process_topic_async(
             work_dir=work_dir,
             user_id=user_id,
             storage_override=storage_override,
+            use_platform_storage=use_platform_storage,
         )
         log(f"☁️ Uploaded: {video_url}")
         return {
             "ok": True,
             "video_url": video_url,
             "engine": chosen_engine,
-            "duration": video_duration,
+            "duration": audio_duration or video_duration,
             "reason": route.get("reason"),
         }
     except Exception as e:
@@ -349,6 +424,7 @@ async def process_topic_async(
                     work_dir=work_dir,
                     user_id=user_id,
                     storage_override=storage_override,
+                    use_platform_storage=use_platform_storage,
                 )
                 return {
                     "ok": True,

@@ -1,7 +1,12 @@
-"""Load user storage integration from Postgres for per-user uploads."""
+"""Load user storage integration from Postgres for per-user uploads.
+
+Credentials are AES-256-GCM encrypted at rest (Next.js encrypts on write;
+this worker decrypts only in-memory for the upload).
+"""
 
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass
 from typing import Optional
@@ -12,6 +17,8 @@ except ImportError:  # pragma: no cover
     psycopg = None  # type: ignore
 
 from services.credentials_crypto import decrypt_credentials
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -34,6 +41,7 @@ def get_storage_integration_for_user(
     dsn = os.getenv("DATABASE_URL", "").strip()
     if not dsn or psycopg is None or not user_id:
         return None
+
     try:
         with psycopg.connect(dsn) as conn:
             with conn.cursor() as cur:
@@ -61,7 +69,22 @@ def get_storage_integration_for_user(
                 row = cur.fetchone()
                 if not row:
                     return None
-                creds = decrypt_credentials(row[4])
+
+                try:
+                    creds = decrypt_credentials(row[4])
+                except Exception as exc:
+                    log.error(
+                        "Failed to decrypt storage integration %s for user %s: %s",
+                        row[0],
+                        user_id,
+                        exc,
+                    )
+                    raise ValueError(
+                        "Could not decrypt saved storage credentials. "
+                        "Confirm SECRET_ENCRYPTION_KEY matches on Vercel and the VPS."
+                    ) from exc
+
+                # Never log credential values
                 return UserStorageConfig(
                     integration_id=str(row[0]),
                     provider=str(row[1]),
@@ -69,5 +92,12 @@ def get_storage_integration_for_user(
                     public_url=row[3],
                     credentials=creds,
                 )
-    except Exception:
+    except ValueError:
+        raise
+    except Exception as exc:
+        log.error("Storage DB lookup failed for user %s: %s", user_id, exc)
+        if integration_id:
+            raise ValueError(
+                "Storage integration lookup failed. Check DATABASE_URL on the worker."
+            ) from exc
         return None
