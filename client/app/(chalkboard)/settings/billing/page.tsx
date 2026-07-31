@@ -20,26 +20,73 @@ function BillingInner() {
   const params = useSearchParams();
   const [me, setMe] = useState<BillingMe | null>(null);
   const [loading, setLoading] = useState(true);
+  const checkoutSuccess = params.get("checkout") === "success";
+
+  async function loadMe() {
+    const res = await fetch("/api/billing/me", { credentials: "include" });
+    if (!res.ok) throw new Error("Failed to load billing");
+    return readJsonSafe<BillingMe>(res);
+  }
 
   useEffect(() => {
-    if (params.get("checkout") === "success") {
-      toast.success("Payment received — plan unlocks when the webhook lands (usually seconds).");
-    }
-  }, [params]);
+    let cancelled = false;
 
-  useEffect(() => {
     void (async () => {
       try {
-        const res = await fetch("/api/billing/me");
-        if (!res.ok) throw new Error("Failed to load billing");
-        setMe(await readJsonSafe<BillingMe>(res));
+        if (checkoutSuccess) {
+          toast.message("Confirming payment…", {
+            description: "Syncing your plan from Dodo (webhook or reconcile).",
+          });
+          // Poll reconcile a few times — webhooks are flaky on localhost.
+          for (let i = 0; i < 8; i++) {
+            const res = await fetch("/api/billing/reconcile", {
+              method: "POST",
+              credentials: "include",
+            });
+            const data = await readJsonSafe<{
+              plan?: string;
+              renderCredits?: number;
+              subscriptionStatus?: string | null;
+              synced?: boolean;
+            }>(res);
+            if (!cancelled && data.plan) {
+              setMe({
+                plan: data.plan,
+                renderCredits: data.renderCredits ?? 0,
+                subscriptionStatus: data.subscriptionStatus ?? null,
+                billingPeriod: null,
+              });
+            }
+            if (data.synced && data.plan && data.plan !== "FREE") {
+              toast.success(`You're on ${data.plan}. API keys updated.`);
+              break;
+            }
+            await new Promise((r) => setTimeout(r, 1500));
+          }
+          if (!cancelled) {
+            const latest = await loadMe();
+            setMe(latest);
+            if (latest.plan === "FREE") {
+              toast.message("Still on Free", {
+                description:
+                  "If you paid, wait a moment or check Dodo webhook URL / signing secret.",
+              });
+            }
+          }
+        } else {
+          setMe(await loadMe());
+        }
       } catch {
-        setMe(null);
+        if (!cancelled) setMe(null);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
-  }, []);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [checkoutSuccess]);
 
   const plan = getPlan(me?.plan);
 
@@ -52,7 +99,7 @@ function BillingInner() {
         </h1>
         <p className="mt-2 max-w-lg text-[13px] text-[var(--muted-text)]">
           You buy monthly renders. Free users stay on a daily cap so OpenRouter
-          costs stay bounded.
+          costs stay bounded. API keys always inherit this account plan.
         </p>
       </header>
 
@@ -86,14 +133,51 @@ function BillingInner() {
                   View plans
                 </Button>
               </Link>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  void (async () => {
+                    setLoading(true);
+                    try {
+                      const res = await fetch("/api/billing/reconcile", {
+                        method: "POST",
+                        credentials: "include",
+                      });
+                      const data = await readJsonSafe<BillingMe & { synced?: boolean }>(
+                        res
+                      );
+                      setMe({
+                        plan: data.plan ?? "FREE",
+                        renderCredits: data.renderCredits ?? 0,
+                        subscriptionStatus: data.subscriptionStatus ?? null,
+                        billingPeriod: data.billingPeriod ?? null,
+                      });
+                      toast.success(
+                        data.synced
+                          ? `Plan synced: ${data.plan}`
+                          : `Still ${data.plan ?? "FREE"}`
+                      );
+                    } catch {
+                      toast.error("Could not refresh billing");
+                    } finally {
+                      setLoading(false);
+                    }
+                  })();
+                }}
+              >
+                Refresh plan
+              </Button>
               {me?.plan !== "FREE" && (
                 <Button
                   type="button"
                   variant="ghost"
                   onClick={() => {
-                    // Open Dodo portal in a new tab so this page keeps the
-                    // Settings Console sidebar (no full-page navigation away).
-                    const w = window.open("/api/portal", "_blank", "noopener,noreferrer");
+                    const w = window.open(
+                      "/api/portal",
+                      "_blank",
+                      "noopener,noreferrer"
+                    );
                     if (!w) {
                       toast.error("Allow pop-ups to open the billing portal");
                     }

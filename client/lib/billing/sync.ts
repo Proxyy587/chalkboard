@@ -1,8 +1,31 @@
 import { db } from "@/lib/db";
 import { getPlan, type PlanId } from "@/lib/billing/plans";
+import type { ApiKeyPlan } from "@prisma/client";
 
 function utcMonth(d = new Date()): string {
   return d.toISOString().slice(0, 7);
+}
+
+/** Map website User.plan → ApiKeyPlan enum cached on keys. */
+export function websitePlanToKeyPlan(plan: string | null | undefined): ApiKeyPlan {
+  const p = (plan ?? "FREE").toUpperCase();
+  if (p === "PRO") return "PRO";
+  if (p === "HOBBY") return "STUDENT";
+  if (p === "OWNER") return "OWNER";
+  if (p === "ENTERPRISE") return "ENTERPRISE";
+  if (p === "CREATOR") return "CREATOR";
+  return "FREE";
+}
+
+/** Every active key for this account mirrors the account plan. */
+export async function syncApiKeysToAccountPlan(
+  userId: string,
+  websitePlan: string
+) {
+  await db.apiKey.updateMany({
+    where: { userId, isActive: true, revokedAt: null },
+    data: { plan: websitePlanToKeyPlan(websitePlan) },
+  });
 }
 
 export async function activatePlanForUser(opts: {
@@ -26,13 +49,7 @@ export async function activatePlanForUser(opts: {
     },
   });
 
-  // Align chalk_* keys with website plan
-  if (opts.plan === "PRO" || opts.plan === "HOBBY") {
-    await db.apiKey.updateMany({
-      where: { userId: opts.userId, isActive: true, revokedAt: null },
-      data: { plan: opts.plan === "PRO" ? "PRO" : "STUDENT" },
-    });
-  }
+  await syncApiKeysToAccountPlan(opts.userId, opts.plan);
 }
 
 export async function downgradeToFree(userId: string, status: string) {
@@ -45,10 +62,31 @@ export async function downgradeToFree(userId: string, status: string) {
       dodoSubscriptionId: null,
     },
   });
-  await db.apiKey.updateMany({
-    where: { userId, isActive: true },
-    data: { plan: "FREE" },
-  });
+  await syncApiKeysToAccountPlan(userId, "FREE");
+}
+
+function digProductId(obj: unknown, depth = 0): string | undefined {
+  if (!obj || typeof obj !== "object" || depth > 4) return undefined;
+  const rec = obj as Record<string, unknown>;
+  if (typeof rec.product_id === "string" && rec.product_id) return rec.product_id;
+  if (Array.isArray(rec.product_cart) && rec.product_cart[0]) {
+    const first = rec.product_cart[0];
+    if (first && typeof first === "object") {
+      const id = (first as { product_id?: string }).product_id;
+      if (typeof id === "string") return id;
+    }
+  }
+  if (rec.product && typeof rec.product === "object") {
+    const id = (rec.product as { product_id?: string }).product_id;
+    if (typeof id === "string") return id;
+  }
+  for (const v of Object.values(rec)) {
+    if (v && typeof v === "object") {
+      const found = digProductId(v, depth + 1);
+      if (found) return found;
+    }
+  }
+  return undefined;
 }
 
 export function extractBillingIds(payload: unknown): {
@@ -57,6 +95,7 @@ export function extractBillingIds(payload: unknown): {
   productId?: string;
   email?: string;
   metadataUserId?: string;
+  planHint?: string;
 } {
   if (!payload || typeof payload !== "object") return {};
   const root = payload as Record<string, unknown>;
@@ -72,28 +111,26 @@ export function extractBillingIds(payload: unknown): {
   const meta =
     data.metadata && typeof data.metadata === "object"
       ? (data.metadata as Record<string, unknown>)
-      : {};
+      : root.metadata && typeof root.metadata === "object"
+        ? (root.metadata as Record<string, unknown>)
+        : {};
 
-  const productId =
-    (typeof data.product_id === "string" && data.product_id) ||
-    (Array.isArray(data.product_cart) &&
-      data.product_cart[0] &&
-      typeof data.product_cart[0] === "object" &&
-      typeof (data.product_cart[0] as { product_id?: string }).product_id ===
-        "string" &&
-      (data.product_cart[0] as { product_id: string }).product_id) ||
+  const planHint =
+    (typeof meta.plan === "string" && meta.plan) ||
+    (typeof data.plan === "string" && data.plan) ||
     undefined;
 
   return {
     customerId:
       (typeof data.customer_id === "string" && data.customer_id) ||
       (typeof customer.customer_id === "string" && customer.customer_id) ||
+      (typeof customer.id === "string" && customer.id) ||
       undefined,
     subscriptionId:
       (typeof data.subscription_id === "string" && data.subscription_id) ||
       (typeof data.subscriptionId === "string" && data.subscriptionId) ||
       undefined,
-    productId,
+    productId: digProductId(data) || digProductId(root),
     email:
       (typeof customer.email === "string" && customer.email) ||
       (typeof data.email === "string" && data.email) ||
@@ -102,5 +139,6 @@ export function extractBillingIds(payload: unknown): {
       (typeof meta.user_id === "string" && meta.user_id) ||
       (typeof meta.userId === "string" && meta.userId) ||
       undefined,
+    planHint,
   };
 }

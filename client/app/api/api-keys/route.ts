@@ -81,18 +81,15 @@ export async function POST(req: Request) {
   const { fullKey, prefix, hash } = generateApiKey(input.environment);
 
   const { isOwnerEmail } = await import("@/lib/quota");
+  const { websitePlanToKeyPlan } = await import("@/lib/billing/sync");
   const userRow = await db.user.findUnique({
     where: { id: user.id },
     select: { plan: true },
   });
-  const websitePlan = (userRow?.plan ?? "FREE").toUpperCase();
-  const plan = isOwnerEmail(user.email)
+  const websitePlan = isOwnerEmail(user.email)
     ? "OWNER"
-    : websitePlan === "PRO"
-      ? "PRO"
-      : websitePlan === "HOBBY"
-        ? "STUDENT"
-        : "FREE";
+    : (userRow?.plan ?? "FREE");
+  const plan = websitePlanToKeyPlan(websitePlan);
 
   const apiKey = await db.apiKey.create({
     data: {

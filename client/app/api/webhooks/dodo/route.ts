@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { planFromDodoProductId } from "@/lib/billing/plans";
+import { planFromDodoProductId, type PlanId } from "@/lib/billing/plans";
 import { createWebhookHandler } from "@/lib/billing/dodo";
 import {
   activatePlanForUser,
@@ -34,6 +34,16 @@ async function resolveUserId(ids: ReturnType<typeof extractBillingIds>) {
   return null;
 }
 
+function resolvePlan(ids: ReturnType<typeof extractBillingIds>): PlanId | null {
+  if (ids.productId) {
+    const fromProduct = planFromDodoProductId(ids.productId);
+    if (fromProduct && fromProduct !== "FREE") return fromProduct;
+  }
+  const hint = ids.planHint?.toUpperCase();
+  if (hint === "HOBBY" || hint === "PRO") return hint;
+  return null;
+}
+
 async function onPaid(payload: unknown, status: string) {
   const ids = extractBillingIds(payload);
   const userId = await resolveUserId(ids);
@@ -41,11 +51,12 @@ async function onPaid(payload: unknown, status: string) {
     console.warn("[dodo webhook] no user for payload", ids);
     return;
   }
-  const plan = ids.productId ? planFromDodoProductId(ids.productId) : null;
-  if (!plan || plan === "FREE") {
-    console.warn("[dodo webhook] unknown product", ids.productId);
+  const plan = resolvePlan(ids);
+  if (!plan) {
+    console.warn("[dodo webhook] unknown product/plan", ids);
     return;
   }
+  console.log("[dodo webhook] activating", { userId, plan, status });
   await activatePlanForUser({
     userId,
     plan,
@@ -62,6 +73,12 @@ async function onCancel(payload: unknown, status: string) {
   await downgradeToFree(userId, status);
 }
 
+function payloadType(payload: unknown): string {
+  if (!payload || typeof payload !== "object") return "";
+  const t = (payload as { type?: unknown }).type;
+  return typeof t === "string" ? t : "";
+}
+
 export async function POST(req: Request) {
   if (!process.env.DODO_PAYMENTS_WEBHOOK_KEY?.trim()) {
     return NextResponse.json(
@@ -71,13 +88,29 @@ export async function POST(req: Request) {
   }
   try {
     const handler = createWebhookHandler({
+      onPayload: async (payload) => {
+        const type = payloadType(payload);
+        console.log("[dodo webhook] event", type);
+        // Catch-all for subscription/payment activations the typed handlers miss
+        if (
+          type === "payment.succeeded" ||
+          type === "subscription.active" ||
+          type === "subscription.renewed" ||
+          type === "subscription.updated"
+        ) {
+          await onPaid(payload, "active");
+        }
+      },
+      onPaymentSucceeded: (p) => onPaid(p, "active"),
       onSubscriptionActive: (p) => onPaid(p, "active"),
       onSubscriptionRenewed: (p) => onPaid(p, "active"),
+      onSubscriptionPlanChanged: (p) => onPaid(p, "active"),
+      onSubscriptionUpdated: (p) => onPaid(p, "active"),
       onSubscriptionCancelled: (p) => onCancel(p, "cancelled"),
       onSubscriptionExpired: (p) => onCancel(p, "expired"),
       onSubscriptionFailed: (p) => onCancel(p, "failed"),
+      onSubscriptionOnHold: (p) => onCancel(p, "on_hold"),
     });
-    // @dodopayments/nextjs Webhooks() returns a route handler
     return handler(req);
   } catch (e) {
     console.error("[dodo webhook]", e);

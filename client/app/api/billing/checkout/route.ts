@@ -93,9 +93,20 @@ export async function POST(req: Request) {
 
   // Best-effort status stamp — never fail checkout if schema/client is lagging.
   try {
+    const customerId =
+      (typeof data.customer_id === "string" && data.customer_id) ||
+      (data.customer &&
+        typeof data.customer === "object" &&
+        typeof (data.customer as { customer_id?: string }).customer_id ===
+          "string" &&
+        (data.customer as { customer_id: string }).customer_id) ||
+      undefined;
     await db.user.update({
       where: { id: user.id },
-      data: { subscriptionStatus: "checkout_started" },
+      data: {
+        subscriptionStatus: `pending:${plan}`,
+        ...(customerId ? { dodoCustomerId: customerId } : {}),
+      },
     });
   } catch (e) {
     console.warn("[billing/checkout] could not stamp subscriptionStatus", e);

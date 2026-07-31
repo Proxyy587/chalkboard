@@ -1,4 +1,5 @@
 import { Checkout, CustomerPortal, Webhooks } from "@dodopayments/nextjs";
+import type { WebhookHandlerConfig } from "@dodopayments/core/webhook";
 
 function env() {
   const bearerToken = process.env.DODO_PAYMENTS_API_KEY?.trim();
@@ -40,14 +41,9 @@ export function createPortalHandler() {
   });
 }
 
-export function createWebhookHandler(handlers: {
-  onSubscriptionActive?: (payload: unknown) => Promise<void>;
-  onSubscriptionRenewed?: (payload: unknown) => Promise<void>;
-  onSubscriptionCancelled?: (payload: unknown) => Promise<void>;
-  onSubscriptionExpired?: (payload: unknown) => Promise<void>;
-  onSubscriptionFailed?: (payload: unknown) => Promise<void>;
-  onPaymentSucceeded?: (payload: unknown) => Promise<void>;
-}) {
+export function createWebhookHandler(
+  handlers: Omit<WebhookHandlerConfig, "webhookKey">
+) {
   const { webhookKey } = env();
   if (!webhookKey) {
     throw new Error("DODO_PAYMENTS_WEBHOOK_KEY is not set");
