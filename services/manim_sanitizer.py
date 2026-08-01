@@ -1,0 +1,279 @@
+"""Deterministic fixes for LLM-generated Manim CE code (pre-render)."""
+
+from __future__ import annotations
+
+import re
+
+
+def _strip_method_calls(code: str, method: str) -> str:
+    needle = f".{method}("
+    out: list[str] = []
+    i = 0
+    while True:
+        idx = code.find(needle, i)
+        if idx < 0:
+            out.append(code[i:])
+            break
+        start = idx
+        while start > 0 and (code[start - 1].isalnum() or code[start - 1] == "_"):
+            start -= 1
+        out.append(code[i:start])
+        out.append(code[start:idx])
+        pos = idx + len(needle)
+        depth = 1
+        while pos < len(code) and depth:
+            ch = code[pos]
+            if ch == "(":
+                depth += 1
+            elif ch == ")":
+                depth -= 1
+            pos += 1
+        if code[pos : pos + 3] == "[0]":
+            pos += 3
+        elif code[pos : pos + 5] == "[ 0 ]":
+            pos += 5
+        i = pos
+    return "".join(out)
+
+
+def _fix_nonpositive_timings(code: str) -> str:
+    def _as_float(raw: str) -> float | None:
+        try:
+            return float(raw)
+        except ValueError:
+            return None
+
+    out_lines: list[str] = []
+    wait_line = re.compile(
+        r"^([ \t]*)self\.wait\(\s*([-+]?[0-9]*\.?[0-9]+)\s*\)([ \t]*#.*)?\s*$"
+    )
+    for line in code.splitlines(True):
+        m = wait_line.match(line.rstrip("\n"))
+        if m:
+            val = _as_float(m.group(2))
+            if val is not None and val <= 0:
+                continue
+            if val is not None and val < 0.05:
+                comment = m.group(3) or ""
+                out_lines.append(f"{m.group(1)}self.wait(0.1){comment}\n")
+                continue
+
+        def clamp_wait(mm: re.Match[str]) -> str:
+            val = _as_float(mm.group(1))
+            if val is not None and val <= 0:
+                return "self.wait(0.1)"
+            return mm.group(0)
+
+        def clamp_run_time(mm: re.Match[str]) -> str:
+            val = _as_float(mm.group(1))
+            if val is not None and val <= 0:
+                return "run_time=0.5"
+            return mm.group(0)
+
+        line = re.sub(r"self\.wait\(\s*([-+]?[0-9]*\.?[0-9]+)\s*\)", clamp_wait, line)
+        line = re.sub(r"run_time\s*=\s*([-+]?[0-9]*\.?[0-9]+)", clamp_run_time, line)
+        out_lines.append(line if line.endswith("\n") or line == "" else line + "\n")
+    result = "".join(out_lines)
+    if code and not code.endswith("\n") and result.endswith("\n"):
+        result = result[:-1]
+    return result
+
+
+def fix_transform_matching_tex(code: str, fixes: list[str]) -> str:
+    """
+    TransformMatchingTex ONLY works between MathTex/Tex with .tex_string.
+    Anything else → ReplacementTransform (always safe).
+    """
+    lines = code.split("\n")
+    var_types: dict[str, str] = {}
+    mathtex_re = re.compile(r"(\w+)\s*=\s*(MathTex|Tex)\s*\(")
+    text_re = re.compile(r"(\w+)\s*=\s*(Text|Title|Paragraph|MarkupText)\s*\(")
+    vgroup_re = re.compile(r"(\w+)\s*=\s*(VGroup|Group|HGroup)\s*\(")
+
+    for line in lines:
+        for m in mathtex_re.finditer(line):
+            var_types[m.group(1)] = "mathtex"
+        for m in text_re.finditer(line):
+            var_types[m.group(1)] = "text"
+        for m in vgroup_re.finditer(line):
+            var_types[m.group(1)] = "vgroup"
+
+    tmt_re = re.compile(r"TransformMatchingTex\s*\(\s*(\w+)\s*,\s*(\w+)")
+    changed = False
+    new_lines: list[str] = []
+
+    for line in lines:
+        new_line = line
+        for m in list(tmt_re.finditer(line)):
+            src, tgt = m.group(1), m.group(2)
+            src_t = var_types.get(src, "unknown")
+            tgt_t = var_types.get(tgt, "unknown")
+            if src_t == "mathtex" and tgt_t == "mathtex":
+                continue
+            new_line = re.sub(
+                rf"TransformMatchingTex\s*\(\s*{re.escape(src)}\s*,\s*{re.escape(tgt)}",
+                f"ReplacementTransform({src}, {tgt}",
+                new_line,
+                count=1,
+            )
+            changed = True
+        new_lines.append(new_line)
+
+    if changed:
+        fixes.append(
+            "Replaced TransformMatchingTex with ReplacementTransform "
+            "where operands were not both MathTex"
+        )
+    return "\n".join(new_lines)
+
+
+def force_safe_transforms(code: str, fixes: list[str]) -> str:
+    """Nuclear option after a TransformMatchingTex crash — replace ALL."""
+    if "TransformMatchingTex" not in code:
+        return code
+    code2 = re.sub(r"\bTransformMatchingTex\b", "ReplacementTransform", code)
+    if code2 != code:
+        fixes.append("Replaced ALL TransformMatchingTex → ReplacementTransform")
+    return code2
+
+
+def fix_axes_sizing(code: str, fixes: list[str]) -> str:
+    """Add x_length/y_length to Axes(...) missing them (best-effort, single-line)."""
+
+    def repl(m: re.Match[str]) -> str:
+        body = m.group(1)
+        if "x_length" in body or "y_length" in body:
+            return m.group(0)
+        # Avoid breaking multi-line Axes with nested parens — only simple calls
+        if body.count("(") != body.count(")"):
+            return m.group(0)
+        fixes.append("Added x_length/y_length to Axes()")
+        trimmed = body.rstrip()
+        if trimmed.endswith(","):
+            return f"Axes({trimmed} x_length=5.5, y_length=4.5)"
+        return f"Axes({trimmed}, x_length=5.5, y_length=4.5)"
+
+    # Single-line Axes only (safer than greedy DOTALL)
+    return re.sub(r"Axes\s*\(([^()\n]*)\)", repl, code)
+
+
+def fix_overflow_coordinates(code: str, fixes: list[str]) -> str:
+    def clamp(
+        pattern: str,
+        limit: float,
+        axis: str,
+        replacement: float,
+        fixes: list[str],
+    ) -> None:
+        nonlocal code
+
+        def _sub(m: re.Match[str]) -> str:
+            try:
+                val = float(m.group(1))
+            except ValueError:
+                return m.group(0)
+            if val > limit:
+                fixes.append(f"Clamped {axis}*{val} → {axis}*{replacement}")
+                return f"{axis} * {replacement}"
+            return m.group(0)
+
+        code = re.sub(pattern, _sub, code)
+
+    clamp(r"UP\s*\*\s*(\d+\.?\d*)", 3.2, "UP", 3.0, fixes)
+    clamp(r"DOWN\s*\*\s*(\d+\.?\d*)", 3.2, "DOWN", 3.0, fixes)
+    clamp(r"RIGHT\s*\*\s*(\d+\.?\d*)", 6.0, "RIGHT", 5.5, fixes)
+    clamp(r"LEFT\s*\*\s*(\d+\.?\d*)", 6.0, "LEFT", 5.5, fixes)
+    return code
+
+
+def fix_scene_class_name(code: str, fixes: list[str]) -> str:
+    before = code
+    for bad in ("MainScene", "MyScene", "Animation", "ManimScene", "VideoScene"):
+        code = re.sub(rf"class\s+{bad}\s*\(", "class Scene(", code)
+    if "class Scene(" not in code:
+        # Last resort: rename first Scene subclass
+        code2, n = re.subn(
+            r"class\s+\w+\s*\(\s*(Scene|ThreeDScene)\s*\)",
+            "class Scene(Scene)",
+            code,
+            count=1,
+        )
+        if n:
+            code = code2
+            fixes.append("Renamed scene class to Scene(Scene)")
+    elif before != code:
+        fixes.append("Normalized scene class name to Scene")
+    # Force 2D Scene base (ThreeDScene breaks most 2D content)
+    if re.search(r"class\s+Scene\s*\(\s*ThreeDScene\s*\)", code):
+        code = re.sub(
+            r"class\s+Scene\s*\(\s*ThreeDScene\s*\)",
+            "class Scene(Scene)",
+            code,
+        )
+        fixes.append("Changed ThreeDScene base → Scene")
+    return code
+
+
+def fix_get_parts_indexing(code: str, fixes: list[str]) -> str:
+    new = re.sub(
+        r"\.get_parts_by_tex\((.*?)\)\s*\[\s*0\s*\]",
+        r".get_part_by_tex(\1)",
+        code,
+    )
+    # Still strip both APIs entirely — they crash downstream with next_to
+    stripped = _strip_method_calls(new, "get_parts_by_tex")
+    stripped = _strip_method_calls(stripped, "get_part_by_tex")
+    if stripped != code:
+        fixes.append("Removed get_part(s)_by_tex usage")
+    return stripped
+
+
+def ensure_manim_import(code: str, fixes: list[str]) -> str:
+    if "from manim import *" not in code:
+        code = "from manim import *\n" + code.lstrip()
+        fixes.append("Added missing 'from manim import *'")
+    return code
+
+
+def sanitize_manim_code(
+    code: str,
+    *,
+    force_safe_tmt: bool = False,
+) -> tuple[str, list[str]]:
+    """
+    Apply deterministic fixes before Manim render.
+    Returns (fixed_code, list_of_fix_descriptions).
+    """
+    fixes: list[str] = []
+    if not code or not code.strip():
+        return code, fixes
+
+    # Drop markdown fences if present
+    fenced = re.sub(r"^```(?:python)?\s*\n?", "", code.strip(), flags=re.MULTILINE)
+    fenced = re.sub(r"\n?```\s*$", "", fenced).strip()
+    if fenced != code.strip():
+        fixes.append("Stripped markdown fences")
+        code = fenced
+
+    code = ensure_manim_import(code, fixes)
+    code = fix_scene_class_name(code, fixes)
+    code = fix_get_parts_indexing(code, fixes)
+    code = _fix_nonpositive_timings(code)
+    if force_safe_tmt:
+        code = force_safe_transforms(code, fixes)
+    else:
+        code = fix_transform_matching_tex(code, fixes)
+    code = fix_axes_sizing(code, fixes)
+    code = fix_overflow_coordinates(code, fixes)
+
+    # DecimalNumber convenience
+    new = re.sub(
+        r"DecimalNumber\(\s*(\w+\.get_value\(\))\s*\)",
+        r"DecimalNumber(\1, num_decimal_places=2)",
+        code,
+    )
+    if new != code:
+        fixes.append("Added num_decimal_places to DecimalNumber")
+        code = new
+
+    return code, fixes

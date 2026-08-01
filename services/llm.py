@@ -62,95 +62,25 @@ def clean_code(code: str, language: str = "python") -> str:
 
 
 def _strip_method_calls(code: str, method: str) -> str:
-    needle = f".{method}("
-    out: list[str] = []
-    i = 0
-    while True:
-        idx = code.find(needle, i)
-        if idx < 0:
-            out.append(code[i:])
-            break
-        start = idx
-        while start > 0 and (code[start - 1].isalnum() or code[start - 1] == "_"):
-            start -= 1
-        out.append(code[i:start])
-        out.append(code[start:idx])
-        pos = idx + len(needle)
-        depth = 1
-        while pos < len(code) and depth:
-            ch = code[pos]
-            if ch == "(":
-                depth += 1
-            elif ch == ")":
-                depth -= 1
-            pos += 1
-        if code[pos : pos + 3] == "[0]":
-            pos += 3
-        elif code[pos : pos + 5] == "[ 0 ]":
-            pos += 5
-        i = pos
-    return "".join(out)
+    """Deprecated path — prefer services.manim_sanitizer. Kept for remotion-unrelated callers."""
+    from services.manim_sanitizer import _strip_method_calls as _impl
+
+    return _impl(code, method)
 
 
-def _fix_nonpositive_timings(code: str) -> str:
-    """
-    Manim rejects wait/run_time <= 0. LLMs often emit self.wait(0.0) at beat
-    boundaries — drop those lines and clamp other non-positive timings.
-    """
+def sanitize_generated_code(code: str, *, force_safe_tmt: bool = False) -> str:
+    from services.manim_sanitizer import sanitize_manim_code
 
-    def _as_float(raw: str) -> float | None:
-        try:
-            return float(raw)
-        except ValueError:
-            return None
-
-    out_lines: list[str] = []
-    wait_line = re.compile(
-        r"^([ \t]*)self\.wait\(\s*([-+]?[0-9]*\.?[0-9]+)\s*\)([ \t]*#.*)?\s*$"
-    )
-    for line in code.splitlines(True):
-        m = wait_line.match(line.rstrip("\n"))
-        if m:
-            val = _as_float(m.group(2))
-            if val is not None and val <= 0:
-                continue  # drop zero/negative wait lines entirely
-            if val is not None and val < 0.05:
-                comment = m.group(3) or ""
-                out_lines.append(f"{m.group(1)}self.wait(0.1){comment}\n")
-                continue
-        # Inline / play kwargs
-        def clamp_wait(mm: re.Match[str]) -> str:
-            val = _as_float(mm.group(1))
-            if val is None:
-                return mm.group(0)
-            if val <= 0:
-                return "self.wait(0.1)"
-            return mm.group(0)
-
-        def clamp_run_time(mm: re.Match[str]) -> str:
-            val = _as_float(mm.group(1))
-            if val is None:
-                return mm.group(0)
-            if val <= 0:
-                return "run_time=0.5"
-            return mm.group(0)
-
-        line = re.sub(r"self\.wait\(\s*([-+]?[0-9]*\.?[0-9]+)\s*\)", clamp_wait, line)
-        line = re.sub(r"run_time\s*=\s*([-+]?[0-9]*\.?[0-9]+)", clamp_run_time, line)
-        out_lines.append(line if line.endswith("\n") or line == "" else line + "\n")
-    # Preserve whether original ended with newline
-    result = "".join(out_lines)
-    if code and not code.endswith("\n") and result.endswith("\n"):
-        result = result[:-1]
-    return result
+    fixed, _fixes = sanitize_manim_code(code, force_safe_tmt=force_safe_tmt)
+    return fixed
 
 
-def sanitize_generated_code(code: str) -> str:
-    code = _strip_method_calls(code, "get_parts_by_tex")
-    code = _strip_method_calls(code, "get_part_by_tex")
-    code = _fix_nonpositive_timings(code)
-    return code
+def sanitize_generated_code_with_fixes(
+    code: str, *, force_safe_tmt: bool = False
+) -> tuple[str, list[str]]:
+    from services.manim_sanitizer import sanitize_manim_code
 
+    return sanitize_manim_code(code, force_safe_tmt=force_safe_tmt)
 
 def sanitize_remotion_code(code: str) -> str:
     """Light post-process for Remotion TSX from LLMs."""
@@ -348,6 +278,8 @@ def generate_manim_code(
     error: Optional[str] = None,
     previous_code: Optional[str] = None,
     log=print,
+    *,
+    force_safe_tmt: bool = False,
 ) -> str:
     log("Generating Manim code...")
     t0 = time.time()
@@ -375,11 +307,13 @@ def generate_manim_code(
         )
         user_msg += f"\n\nPREVIOUS ATTEMPT:\n{trimmed}"
     if error:
-        user_msg += f"\n\nRENDER ERROR TO FIX:\n{error[-2500:]}\n{MANIM_ERROR_HINTS}"
-        if "NoneType" in error and "next_to" in error:
+        # error may already be a structured block from manim_error_parser
+        err_block = error if len(error) < 4000 else error[-4000:]
+        user_msg += f"\n\nRENDER ERROR TO FIX:\n{err_block}\n{MANIM_ERROR_HINTS}"
+        if force_safe_tmt or "TransformMatchingTex" in error:
             user_msg += (
-                "\nRemove ALL get_part_by_tex / next_to(part). "
-                "Use SurroundingRectangle on whole MathTex."
+                "\nMANDATORY: Replace EVERY TransformMatchingTex with "
+                "ReplacementTransform. Do not use TransformMatchingTex at all."
             )
 
     response = _client.chat.send(
@@ -389,7 +323,12 @@ def generate_manim_code(
             {"role": "user", "content": user_msg},
         ],
     )
-    code = sanitize_generated_code(clean_code(response.choices[0].message.content, "python"))
+    raw = clean_code(response.choices[0].message.content, "python")
+    code, fixes = sanitize_generated_code_with_fixes(
+        raw, force_safe_tmt=force_safe_tmt
+    )
+    if fixes:
+        log(f"  🔧 Auto-fixed: {', '.join(fixes)}")
     if "from manim import" not in code:
         raise RuntimeError("Invalid Manim code: missing manim import")
     if "class Scene" not in code:

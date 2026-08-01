@@ -61,6 +61,8 @@ Latency / reliability:
 - Default `MANIM_MAX_ATTEMPTS=3` (was 4); simplify plan from attempt 2
 - Cap beat sheet at 8 beats
 - If render undershoots audio by >1.5s, one pad re-render via `append_end_wait`
+- Pre-render: `manim_sanitizer` + `manim_validator`; TMT crashes auto-repair + re-render
+  before another LLM call (`manim_error_parser`)
 
 ## Do not
 

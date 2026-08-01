@@ -29,27 +29,46 @@ beat sheet (measured start_s / duration_sec)
 | `from manim import *` first | No other packages except optional `numpy` |
 | `self.wait(t)` with **t > 0** | Manim raises `ValueError` on `wait(0)` |
 | `run_time=` **> 0** | Same validator as wait |
+| `TransformMatchingTex` **only** MathTex↔MathTex | Else `AssertionError: tex_string` |
 | No `get_part_by_tex` / `get_parts_by_tex` | Returns `None` → `next_to` crashes |
 | Highlight **whole** `MathTex` only | Substring APIs are banned |
 | FadeIn / Write / `self.add` before use | Objects must be on scene |
 | Safe zone X∈[-6,6], Y∈[-3.2,3.2] | Prevents off-screen content |
+
+## Pre-render safety stack
+
+1. **`services/manim_sanitizer.py`** — deterministic fixes:
+   - `TransformMatchingTex` → `ReplacementTransform` unless both operands are MathTex
+   - drop `wait(0)` / clamp `run_time<=0`
+   - strip `get_part(s)_by_tex`
+   - add Axes `x_length`/`y_length`, clamp overflow coords
+2. **`services/manim_validator.py`** — static errors skip render (syntax, banned APIs)
+3. **`services/manim_error_parser.py`** — structured retry hints; on TMT crash,
+   force-replace all TMT and **re-render without another LLM call** first
 
 ### Zero-duration is always wrong
 
 ```python
 # BAD — hard crash
 self.wait(0)
-self.wait(0.0)
 self.play(Write(title), run_time=0)
 
-# GOOD — omit the wait, or use a positive value
+# GOOD
 self.play(Write(title), run_time=0.5)
-# (no wait line if already at beat boundary)
 self.wait(0.5)
 ```
 
-Sanitizer removes `self.wait(0)` lines and clamps `run_time<=0` → `0.5`, but
-**prompts must not teach zero waits**.
+### TransformMatchingTex is always wrong on Text
+
+```python
+# BAD
+self.play(TransformMatchingTex(title, title2))  # Text → crash
+
+# GOOD
+self.play(ReplacementTransform(title, title2))
+# or MathTex only:
+self.play(TransformMatchingTex(eq1, eq2))
+```
 
 ## Beat timing pattern
 

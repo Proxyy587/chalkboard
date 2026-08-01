@@ -18,6 +18,7 @@ from services.llm import (
     generate_visual_plan,
 )
 from services.manim_pad import append_end_wait
+from prompts.manim_prompt import MANIM_ERROR_HINTS
 from services.merger import merge_video_audio_captions
 from services.remotion_renderer import render_remotion
 from services.renderer import get_media_duration, render_video
@@ -95,24 +96,31 @@ async def _run_manim_pipeline(
     max_attempts: int = 3,
     audio_duration: Optional[float] = None,
 ) -> tuple[Optional[str], Optional[str]]:
+    from services.manim_error_parser import format_error_for_llm, parse_manim_error
+    from services.manim_sanitizer import sanitize_manim_code
+    from services.manim_validator import format_validation_errors, validate_manim_code
+
     last_error = None
     previous_code = None
+    force_safe_tmt = False
     plan_text = format_beat_sheet_for_prompt(visual_plan)
     for attempt in range(1, max_attempts + 1):
         attempt_complexity = complexity
         attempt_plan: dict[str, Any] | str = visual_plan
-        # Fail fast toward simple, crash-proof scenes — 4 fancy retries burn minutes.
+        # Fail fast toward simple, crash-proof scenes.
         if attempt >= 2:
             attempt_complexity = "simple"
             attempt_plan = (
                 "Keep it VERY simple and crash-proof:\n"
-                "1) Title at top\n"
+                "1) Title at top (Text) — use FadeIn / ReplacementTransform only\n"
                 "2) One main MathTex equation at center\n"
-                "3) SurroundingRectangle highlight\n"
-                "4) TransformMatchingTex to next equation\n"
-                "5) Short conclusion text\n"
-                "NO get_part_by_tex, NO arrows to equation parts, NO next_to on subparts.\n"
-                "Match beat START AT / HOLD FOR timings with self.wait().\n"
+                "3) SurroundingRectangle highlight on the WHOLE equation\n"
+                "4) Next equation via TransformMatchingTex ONLY if both are MathTex;\n"
+                "   otherwise ReplacementTransform\n"
+                "5) Short conclusion Text\n"
+                "NO get_part_by_tex, NO TransformMatchingTex on Text/VGroup,\n"
+                "NO wait(0), NO run_time=0.\n"
+                "Match beat START AT / HOLD FOR timings with positive self.wait().\n"
                 f"Original plan intent (simplify heavily):\n{plan_text[:1200]}"
             )
         log(f"\n🧠 Manim attempt {attempt}/{max_attempts} (complexity={attempt_complexity})")
@@ -126,17 +134,75 @@ async def _run_manim_pipeline(
                 error=last_error,
                 previous_code=previous_code,
                 log=log,
+                force_safe_tmt=force_safe_tmt,
             )
         except Exception as e:
             last_error = str(e)
             log(f"  ❌ Code generation failed: {last_error}")
             continue
+
+        # Re-sanitize with nuclear TMT fix if a prior crash demanded it
+        if force_safe_tmt:
+            code, fixes = sanitize_manim_code(code, force_safe_tmt=True)
+            if fixes:
+                log(f"  🔧 Re-sanitize: {', '.join(fixes)}")
+
+        issues = validate_manim_code(code)
+        errors = [i for i in issues if i.severity == "error"]
+        for w in issues:
+            if w.severity == "warning":
+                log(f"  ⚠️ {w.message}")
+        if errors:
+            # Auto-fix remaining TMT issues, then re-validate once
+            if any("TransformMatchingTex" in (e.message or "") for e in errors):
+                code, fixes = sanitize_manim_code(code, force_safe_tmt=True)
+                force_safe_tmt = True
+                if fixes:
+                    log(f"  🔧 Validator auto-fix: {', '.join(fixes)}")
+                issues = validate_manim_code(code)
+                errors = [i for i in issues if i.severity == "error"]
+            if errors:
+                last_error = (
+                    "ValidationError\n" + format_validation_errors(errors) + "\n"
+                    + MANIM_ERROR_HINTS
+                )
+                previous_code = code
+                log("  ❌ Validation errors — skipping render, regenerating...")
+                for e in errors[:5]:
+                    log(f"     • {e.message}")
+                continue
+
         previous_code = code
         video, err = render_video(code, output_dir=output_dir, log=log)
         if not video:
-            last_error = err
-            log("🔁 Manim render failed — retrying with error context...")
-            continue
+            info = parse_manim_error(err or "")
+            if info.get("force_safe_tmt"):
+                force_safe_tmt = True
+                # Immediate deterministic repair + re-render without another LLM call
+                repaired, fixes = sanitize_manim_code(code, force_safe_tmt=True)
+                if fixes:
+                    log(f"  🔧 Crash repair: {', '.join(fixes)}")
+                if repaired != code:
+                    video2, err2 = render_video(repaired, output_dir=output_dir, log=log)
+                    if video2:
+                        previous_code = repaired
+                        video = video2
+                        err = None
+                    else:
+                        err = err2 or err
+                        code = repaired
+                        previous_code = repaired
+                        info = parse_manim_error(err or "")
+
+            if not video:
+                last_error = format_error_for_llm(info, previous_code)
+                log(
+                    f"🔁 Manim render failed ({info.get('type')}): "
+                    f"{info.get('message')}"
+                )
+                if info.get("fix_hint"):
+                    log(f"   💡 {info['fix_hint'][:200]}")
+                continue
 
         # If picture undershot narration, one pad re-render (real waits > freeze-frame).
         if audio_duration and audio_duration > 0 and previous_code:
