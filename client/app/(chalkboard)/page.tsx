@@ -22,38 +22,15 @@ import {
   setPreferredModel,
 } from "@/lib/chalkboard-api";
 import {
+  DEMO_PROMPTS,
+  type DemoPrompt,
+} from "@/lib/demo-prompts";
+import {
   PROMPT_MAX_LENGTH,
   PROMPT_MIN_LENGTH,
   validatePrompt,
 } from "@/lib/prompt";
 import "@/app/landing.css";
-
-const DEMO_PROMPTS = [
-  {
-    n: "01",
-    label: "Fourier series",
-    prompt:
-      "Explain the Fourier transform with a clear visual intuition — start from a sum of waves and build toward frequency space.",
-  },
-  {
-    n: "02",
-    label: "Bayes' theorem",
-    prompt:
-      "Teach Bayes' theorem with a medical testing example. Keep the math honest and the visuals minimal.",
-  },
-  {
-    n: "03",
-    label: "Gradient descent",
-    prompt:
-      "Visualize gradient descent on a simple loss surface. Narrate each step so a first-year student can follow.",
-  },
-  {
-    n: "04",
-    label: "Euler's identity",
-    prompt:
-      "Show why e^{iπ} + 1 = 0 feels inevitable — rotation on the complex plane, not just a formula.",
-  },
-];
 
 const FEATURES = [
   {
@@ -104,7 +81,7 @@ export default function LandingPage() {
   }, [rootEl]);
 
   const submit = useCallback(
-    (text: string) => {
+    (text: string, demo?: DemoPrompt) => {
       const check = validatePrompt(text);
       if (!check.ok) {
         toast.error(check.error ?? "Invalid topic");
@@ -114,7 +91,13 @@ export default function LandingPage() {
       setBusy(true);
       setPreferredModel(model);
       setPreferredDuration(duration);
-      const id = createThreadFromPrompt(check.prompt, { model, duration });
+      const id = createThreadFromPrompt(check.prompt, {
+        model,
+        duration: demo?.duration ?? duration,
+        tier: demo?.tier ?? "tier2",
+        engine: demo?.engine ?? "auto",
+        autoStart: Boolean(demo),
+      });
       setValue("");
       router.push(`/thread/${id}`);
     },
@@ -269,7 +252,9 @@ export default function LandingPage() {
 
           <section id="starters">
             <h2>Try a starter</h2>
-            <p>Opens a ready-to-generate draft with the same pipeline.</p>
+            <p>
+              Pre-validated Tier‑1 topics — usually ready in about 1–2 minutes.
+            </p>
             <div className="lp-starters">
               {DEMO_PROMPTS.map((item) => (
                 <button
@@ -277,10 +262,22 @@ export default function LandingPage() {
                   type="button"
                   className="lp-starter"
                   disabled={busy}
-                  onClick={() => submit(item.prompt)}
+                  onClick={() => submit(item.prompt, item)}
                 >
                   <div className="n">{item.n}</div>
-                  <div className="t">{item.label}</div>
+                  <div className="t">
+                    {item.label}
+                    <span
+                      style={{
+                        marginLeft: 8,
+                        fontSize: 11,
+                        opacity: 0.65,
+                        fontWeight: 500,
+                      }}
+                    >
+                      {item.etaDisplay}
+                    </span>
+                  </div>
                   <div className="b">{item.prompt}</div>
                 </button>
               ))}

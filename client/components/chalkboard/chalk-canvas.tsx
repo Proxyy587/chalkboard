@@ -57,17 +57,26 @@ export function ChalkCanvas({
   const rendering =
     activeVideo?.status === "queued" || activeVideo?.status === "processing";
 
+  const progressCopy = rendering
+    ? [
+        activeVideo?.message || "Building lecture…",
+        activeVideo?.etaDisplay
+          ? `Usually ${activeVideo.etaDisplay}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : activeVideo?.status === "completed"
+      ? "Video ready"
+      : "Waiting to generate";
+
   return (
     <section className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
       <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3">
         <div>
           <p className="mm-label">Output</p>
           <p className="mt-0.5 text-[12px] text-[var(--muted-text)]">
-            {activeVideo?.status === "completed"
-              ? "Video ready"
-              : rendering
-                ? "Building lecture…"
-                : "Waiting to generate"}
+            {progressCopy}
           </p>
         </div>
         <button
@@ -146,11 +155,17 @@ export function ChalkCanvas({
                       />
                     ))}
                   </div>
-                  <p className="max-w-[260px] text-center text-[12px] leading-relaxed text-[var(--muted-text)]">
+                  <p className="max-w-[280px] text-center text-[12px] leading-relaxed text-[var(--muted-text)]">
                     {rendering
-                      ? "Manim + narration + upload in progress"
+                      ? activeVideo?.message ||
+                        "Narration → code → render → merge in progress"
                       : "Hit Generate to render this lecture"}
                   </p>
+                  {rendering && activeVideo?.etaDisplay ? (
+                    <p className="text-[11px] text-[var(--muted-2)]">
+                      ETA {activeVideo.etaDisplay}
+                    </p>
+                  ) : null}
                 </div>
               )}
             </div>

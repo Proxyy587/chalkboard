@@ -17,9 +17,11 @@ description: >-
 ## Read first
 
 1. [docs/PROMPT_ENGINEERING.md](../../docs/PROMPT_ENGINEERING.md) — full pipeline
-2. [docs/MANIM_ENGINE.md](../../docs/MANIM_ENGINE.md) — Manim crash rules (`wait(0)` banned)
-3. [docs/REMOTION_ENGINE.md](../../docs/REMOTION_ENGINE.md) — Remotion frame rules
-4. [docs/ROADMAP.md](../../docs/ROADMAP.md) — public API plans
+2. [docs/MANIM_PRODUCTION.md](../../docs/MANIM_PRODUCTION.md) — speed, tiers, templates, ETA
+3. [docs/REMOTION_PRODUCTION.md](../../docs/REMOTION_PRODUCTION.md) — Remotion production
+4. [docs/MANIM_ENGINE.md](../../docs/MANIM_ENGINE.md) — Manim crash rules (`wait(0)` banned)
+5. [docs/REMOTION_ENGINE.md](../../docs/REMOTION_ENGINE.md) — Remotion frame rules
+6. [docs/ROADMAP.md](../../docs/ROADMAP.md) — public API plans
 
 ## Pipeline (do not break order)
 
@@ -58,11 +60,13 @@ Merger (`services/merger.py`):
 - Soft subtitle tracks skipped; burn captions after mux
 
 Latency / reliability:
-- Default `MANIM_MAX_ATTEMPTS=3` (was 4); simplify plan from attempt 2
-- Cap beat sheet at 8 beats
+- Default `MANIM_MAX_ATTEMPTS=3`; simplify plan from attempt 2
+- Cap beat sheet at 8 beats (tier1: 5)
+- Tier1 / homepage templates use `-ql` + short duration + auto-start
+- LaTeX warmup on API startup (`services/latex_warmup.py`)
+- Job ETA via `eta_display` / `message` / `phase` on status API
 - If render undershoots audio by >1.5s, one pad re-render via `append_end_wait`
 - Pre-render: `manim_sanitizer` + `manim_validator`; TMT crashes auto-repair + re-render
-  before another LLM call (`manim_error_parser`)
 
 ## Do not
 
@@ -71,9 +75,10 @@ Latency / reliability:
 - Emit `self.wait(0)` / `run_time=0` in Manim prompts or examples
 - Emit `durationInFrames={0}` in Remotion prompts or examples
 - Revert to render-then-narrate as the default
-- Use Manim `-ql` in production
+- Use Manim `-qh` for default/tier1 user jobs (tier1 uses `-ql`; standard uses `-qm`)
 - Remove beat-sheet JSON / `[BEAT:N]` markers without updating `audio.py` + `worker.py`
 - Add `get_part_by_tex` examples to Manim prompts
+- Ship homepage starters that are not tier1 / auto-start
 
 ## Quick test
 

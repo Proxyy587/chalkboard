@@ -23,6 +23,11 @@ export type ThreadVideo = {
   videoUrl?: string | null;
   error?: string | null;
   cached?: boolean;
+  /** Live status copy from the worker */
+  message?: string | null;
+  etaSeconds?: number | null;
+  etaDisplay?: string | null;
+  phase?: string | null;
 };
 
 export type Thread = {
@@ -34,6 +39,11 @@ export type Thread = {
   model: string;
   /** Optional target duration in seconds; omit for auto. */
   duration?: number;
+  /** Quality/speed tier: tier1 | tier2 | tier3 */
+  tier?: "tier1" | "tier2" | "tier3";
+  engine?: "auto" | "manim" | "remotion";
+  /** When true, thread page starts a render once on mount. */
+  autoStart?: boolean;
   updatedAt: number;
 };
 
@@ -60,6 +70,15 @@ export function normalizeThread(raw: unknown): Thread | null {
     videos,
     model,
     duration: typeof t.duration === "number" ? t.duration : undefined,
+    tier:
+      t.tier === "tier1" || t.tier === "tier2" || t.tier === "tier3"
+        ? t.tier
+        : undefined,
+    engine:
+      t.engine === "auto" || t.engine === "manim" || t.engine === "remotion"
+        ? t.engine
+        : undefined,
+    autoStart: Boolean(t.autoStart),
     updatedAt: typeof t.updatedAt === "number" ? t.updatedAt : Date.now(),
   };
 }
@@ -86,5 +105,9 @@ function normalizeVideo(raw: unknown): ThreadVideo | null {
     videoUrl: v.videoUrl ?? undefined,
     error: v.error ?? undefined,
     cached: Boolean(v.cached),
+    message: typeof v.message === "string" ? v.message : undefined,
+    etaSeconds: typeof v.etaSeconds === "number" ? v.etaSeconds : undefined,
+    etaDisplay: typeof v.etaDisplay === "string" ? v.etaDisplay : undefined,
+    phase: typeof v.phase === "string" ? v.phase : undefined,
   };
 }

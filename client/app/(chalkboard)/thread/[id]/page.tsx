@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { ChalkCanvas } from "@/components/chalkboard/chalk-canvas";
 import { useChalkboard } from "@/components/chalkboard/chalkboard-context";
@@ -28,6 +28,7 @@ export default function ThreadPage() {
     startLectureRender,
   } = useChalkboard();
   const thread = id ? getThread(id) : undefined;
+  const autoStarted = useRef(false);
 
   const prompt =
     thread?.messages.find((m) => m.role === "user")?.content ?? "";
@@ -36,6 +37,22 @@ export default function ThreadPage() {
   useEffect(() => {
     setDraft(prompt);
   }, [prompt, id]);
+
+  // Starter templates auto-kick the pipeline so the first click always renders.
+  useEffect(() => {
+    if (!hydrated || !thread || !id || autoStarted.current) return;
+    if (!thread.autoStart) return;
+    if (thread.videos.some((v) => v.status === "queued" || v.status === "processing" || v.status === "completed")) {
+      autoStarted.current = true;
+      return;
+    }
+    autoStarted.current = true;
+    void startLectureRender(id, undefined, {
+      duration: thread.duration,
+      tier: thread.tier,
+      engine: thread.engine,
+    });
+  }, [hydrated, id, startLectureRender, thread]);
 
   if (!hydrated) {
     return (
@@ -118,8 +135,10 @@ export default function ThreadPage() {
               onDurationChange={(d) => setThreadDuration(id, d)}
             />
             <p className="text-[11px] leading-relaxed text-[var(--muted-2)]">
-              {getModelLabel(thread.model)} · Generate runs script → Manim →
-              narration → video.
+              {getModelLabel(thread.model)}
+              {thread.tier === "tier1"
+                ? " · Fast template (~1–2 min)"
+                : " · Narration → code → render → merge"}
             </p>
           </div>
         </div>
@@ -130,7 +149,11 @@ export default function ThreadPage() {
           videos={thread.videos}
           renderDisabled={!canGenerate}
           onRender={async () => {
-            await startLectureRender(id, draft, { duration: thread.duration });
+            await startLectureRender(id, draft, {
+              duration: thread.duration,
+              tier: thread.tier,
+              engine: thread.engine,
+            });
           }}
         />
       </div>

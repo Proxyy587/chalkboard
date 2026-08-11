@@ -280,7 +280,10 @@ def generate_manim_code(
     log=print,
     *,
     force_safe_tmt: bool = False,
+    tier: Optional[str] = None,
 ) -> str:
+    from services.quality_tiers import tier_prompt_block
+
     log("Generating Manim code...")
     t0 = time.time()
     if isinstance(visual_plan, dict):
@@ -299,6 +302,7 @@ def generate_manim_code(
         duration_text=_duration_text(duration),
         complexity=complexity,
     )
+    user_msg += f"\n\n{tier_prompt_block(tier)}"
     if previous_code:
         trimmed = (
             previous_code

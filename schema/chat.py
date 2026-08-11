@@ -56,6 +56,10 @@ class VideoRequest(BaseModel):
         le=1080,
         description="Max output height (platform proxy only).",
     )
+    tier: Optional[str] = Field(
+        default=None,
+        description="Quality/speed tier: tier1 (fast/templates), tier2 (standard), tier3 (complex).",
+    )
 
 
 class JobCreateResponse(BaseModel):
@@ -64,6 +68,10 @@ class JobCreateResponse(BaseModel):
     cached: bool = False
     video_url: Optional[str] = None
     engine: Optional[str] = None
+    eta_seconds: Optional[int] = None
+    eta_display: Optional[str] = None
+    message: Optional[str] = None
+    tier: Optional[str] = None
 
 
 class JobStatusResponse(BaseModel):
@@ -74,3 +82,8 @@ class JobStatusResponse(BaseModel):
     cached: bool = False
     engine: Optional[str] = None
     duration: Optional[float] = None
+    phase: Optional[str] = None
+    message: Optional[str] = None
+    eta_seconds: Optional[int] = None
+    eta_display: Optional[str] = None
+    tier: Optional[str] = None

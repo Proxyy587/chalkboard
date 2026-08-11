@@ -32,6 +32,7 @@ export type VideoRequestBody = {
   model?: string;
   engine?: "auto" | "manim" | "remotion";
   duration?: number;
+  tier?: "tier1" | "tier2" | "tier3";
   storage?: VideoStorageRequest;
   /** Platform proxy only — free-tier quality pins */
   watermark?: boolean;
@@ -44,6 +45,10 @@ export type VideoJobResponse = {
   cached?: boolean;
   video_url?: string | null;
   engine?: string | null;
+  eta_seconds?: number | null;
+  eta_display?: string | null;
+  message?: string | null;
+  tier?: string | null;
 };
 
 export type VideoStatusResponse = {
@@ -54,4 +59,9 @@ export type VideoStatusResponse = {
   cached?: boolean;
   engine?: string | null;
   duration?: number | null;
+  phase?: string | null;
+  message?: string | null;
+  eta_seconds?: number | null;
+  eta_display?: string | null;
+  tier?: string | null;
 };

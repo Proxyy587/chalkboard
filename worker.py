@@ -95,6 +95,8 @@ async def _run_manim_pipeline(
     output_dir: str,
     max_attempts: int = 3,
     audio_duration: Optional[float] = None,
+    manim_quality: Optional[str] = None,
+    tier: Optional[str] = None,
 ) -> tuple[Optional[str], Optional[str]]:
     from services.manim_error_parser import format_error_for_llm, parse_manim_error
     from services.manim_sanitizer import sanitize_manim_code
@@ -135,6 +137,7 @@ async def _run_manim_pipeline(
                 previous_code=previous_code,
                 log=log,
                 force_safe_tmt=force_safe_tmt,
+                tier=tier,
             )
         except Exception as e:
             last_error = str(e)
@@ -173,7 +176,9 @@ async def _run_manim_pipeline(
                 continue
 
         previous_code = code
-        video, err = render_video(code, output_dir=output_dir, log=log)
+        video, err = render_video(
+            code, output_dir=output_dir, log=log, quality=manim_quality
+        )
         if not video:
             info = parse_manim_error(err or "")
             if info.get("force_safe_tmt"):
@@ -183,7 +188,12 @@ async def _run_manim_pipeline(
                 if fixes:
                     log(f"  🔧 Crash repair: {', '.join(fixes)}")
                 if repaired != code:
-                    video2, err2 = render_video(repaired, output_dir=output_dir, log=log)
+                    video2, err2 = render_video(
+                        repaired,
+                        output_dir=output_dir,
+                        log=log,
+                        quality=manim_quality,
+                    )
                     if video2:
                         previous_code = repaired
                         video = video2
@@ -217,7 +227,12 @@ async def _run_manim_pipeline(
                     f"re-rendering once with end wait (no voice stretch)"
                 )
                 padded = append_end_wait(previous_code, shortfall)
-                video2, err2 = render_video(padded, output_dir=output_dir, log=log)
+                video2, err2 = render_video(
+                    padded,
+                    output_dir=output_dir,
+                    log=log,
+                    quality=manim_quality,
+                )
                 if video2:
                     return video2, None
                 log(f"  ⚠️ Pad re-render skipped ({(err2 or '')[:200]}) — merge will freeze-pad")
@@ -355,6 +370,7 @@ async def process_topic_async(
     status_cb=None,
     watermark: bool = False,
     max_height: int = 1080,
+    tier: Optional[str] = None,
 ) -> dict:
     """
     Full Clarity video pipeline.
@@ -362,33 +378,62 @@ async def process_topic_async(
       success → {ok: True, video_url, engine, duration, ...}
       failure → {ok: False, error: "...", engine?: ...}
     """
+    from services.quality_tiers import get_tier_config, normalize_tier, status_payload
+
     job_id = job_id or uuid.uuid4().hex
     work_dir = job_work_dir(job_id)
     policy = storage_policy()
+    tier_name = normalize_tier(tier)
+    tier_cfg = get_tier_config(tier_name)
     log(
         f"Storage policy: env={policy['clarity_env']}, "
-        f"keep_local={policy['keep_local_outputs']}, work_dir={work_dir}"
+        f"keep_local={policy['keep_local_outputs']}, work_dir={work_dir}, "
+        f"tier={tier_name} ({tier_cfg['label']})"
     )
 
     def set_status(status: str, **extra):
         if status_cb:
-            status_cb(status, extra)
+            payload = status_payload(status, tier_name)
+            payload.update(extra)
+            status_cb(status, payload)
 
     video = None
     chosen_engine = None
     try:
         set_status("routing")
-        route = route_prompt(topic, forced_engine=engine, preferred_duration=duration)
+        # Tier-1 templates: force short, simple, reliable path
+        preferred_duration = duration
+        if preferred_duration is None and tier_name == "tier1":
+            preferred_duration = int(tier_cfg["max_duration_sec"])
+        elif preferred_duration is not None:
+            preferred_duration = min(
+                int(preferred_duration), int(tier_cfg["max_duration_sec"])
+            )
+
+        route = route_prompt(
+            topic, forced_engine=engine, preferred_duration=preferred_duration
+        )
         chosen_engine = route["engine"]
-        router_duration = route.get("duration")  # None = AI picks length in beat sheet
+        router_duration = route.get("duration")
+        if router_duration is None and preferred_duration is not None:
+            router_duration = preferred_duration
         complexity = route.get("complexity", "medium")
+        if tier_name == "tier1":
+            complexity = "simple"
+        elif tier_cfg.get("complexity"):
+            complexity = str(tier_cfg["complexity"])
         subject = route.get("subject", topic)
         log(
             f"Router chose: {chosen_engine} ({route.get('reason')}), "
             f"duration={'auto' if router_duration is None else f'{router_duration}s'}, "
-            f"complexity={complexity}"
+            f"complexity={complexity}, tier={tier_name}"
         )
-        set_status("routing", engine=chosen_engine, duration=router_duration)
+        set_status(
+            "routing",
+            engine=chosen_engine,
+            duration=router_duration,
+            tier=tier_name,
+        )
 
         # 1) Beat-sheet plan (visual + narration + timing)
         set_status("planning", engine=chosen_engine)
@@ -398,6 +443,12 @@ async def process_topic_async(
             duration=router_duration,
             log=log,
         )
+        # Cap beats for tier reliability
+        max_beats = int(tier_cfg.get("max_beats") or 8)
+        beats = visual_plan.get("beats") or []
+        if len(beats) > max_beats:
+            visual_plan["beats"] = beats[:max_beats]
+            log(f"  ✂️ Tier {tier_name}: trimmed to {max_beats} beats")
         plan_duration = int(beat_sheet_target_duration(visual_plan))
         log(f"Beat sheet ready: {len(visual_plan.get('beats', []))} beats, ~{plan_duration}s")
 
@@ -430,6 +481,7 @@ async def process_topic_async(
         # 3) Generate + render video timed to measured beat timestamps
         set_status("generating_code", engine=chosen_engine)
         attempts = max_attempts or _default_max_attempts()
+        manim_quality = str(tier_cfg.get("manim_quality") or "medium")
         if chosen_engine == "remotion":
             video, render_err = await _run_remotion_pipeline(
                 topic=subject,
@@ -451,6 +503,8 @@ async def process_topic_async(
                 output_dir=work_dir,
                 max_attempts=attempts,
                 audio_duration=audio_duration,
+                manim_quality=manim_quality,
+                tier=tier_name,
             )
 
         if not (video and os.path.exists(video)):

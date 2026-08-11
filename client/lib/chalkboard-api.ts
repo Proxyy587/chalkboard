@@ -137,6 +137,10 @@ export type JobCreateResponse = {
   status: string;
   cached?: boolean;
   video_url?: string | null;
+  eta_seconds?: number | null;
+  eta_display?: string | null;
+  message?: string | null;
+  tier?: string | null;
 };
 
 export type JobStatusResponse = {
@@ -145,6 +149,13 @@ export type JobStatusResponse = {
   video_url?: string | null;
   error?: string | null;
   cached?: boolean;
+  engine?: string | null;
+  duration?: number | null;
+  phase?: string | null;
+  message?: string | null;
+  eta_seconds?: number | null;
+  eta_display?: string | null;
+  tier?: string | null;
 };
 
 async function readApiError(res: Response): Promise<string> {
@@ -176,6 +187,7 @@ export async function createLectureJob(
   opts?: {
     engine?: "auto" | "manim" | "remotion";
     duration?: number;
+    tier?: "tier1" | "tier2" | "tier3";
     storage?: { integration_id?: string; inline?: Record<string, unknown> };
   }
 ): Promise<JobCreateResponse> {
@@ -190,6 +202,7 @@ export async function createLectureJob(
     engine: opts?.engine ?? "auto",
   };
   if (opts?.duration != null) body.duration = opts.duration;
+  if (opts?.tier) body.tier = opts.tier;
   if (opts?.storage) body.storage = opts.storage;
 
   const headers = apiHeaders();

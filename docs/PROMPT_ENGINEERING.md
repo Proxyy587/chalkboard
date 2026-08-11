@@ -100,6 +100,8 @@ Debug artifacts in the job work dir: `words.json`, `beat_map.json`,
 
 | Doc | Use when |
 |-----|----------|
+| [`docs/MANIM_PRODUCTION.md`](./MANIM_PRODUCTION.md) | Speed, tiers, templates, ETA |
+| [`docs/REMOTION_PRODUCTION.md`](./REMOTION_PRODUCTION.md) | Remotion speed / design / ETA |
 | [`docs/MANIM_ENGINE.md`](./MANIM_ENGINE.md) | Manim crashes, `wait(0)`, MathTex / layout rules |
 | [`docs/REMOTION_ENGINE.md`](./REMOTION_ENGINE.md) | Remotion compile errors, frame math, clamps |
 

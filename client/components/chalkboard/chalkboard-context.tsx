@@ -108,7 +108,13 @@ type ChalkboardContextValue = {
   getThread: (id: string) => Thread | undefined;
   createThreadFromPrompt: (
     prompt: string,
-    opts?: { model?: string; duration?: number }
+    opts?: {
+      model?: string;
+      duration?: number;
+      tier?: "tier1" | "tier2" | "tier3";
+      engine?: "auto" | "manim" | "remotion";
+      autoStart?: boolean;
+    }
   ) => string;
   setThreadPrompt: (threadId: string, content: string) => void;
   deleteThread: (threadId: string) => void;
@@ -117,7 +123,7 @@ type ChalkboardContextValue = {
   startLectureRender: (
     threadId: string,
     promptOverride?: string,
-    opts?: { duration?: number }
+    opts?: { duration?: number; tier?: "tier1" | "tier2" | "tier3"; engine?: "auto" | "manim" | "remotion" }
   ) => Promise<void>;
 };
 
@@ -299,7 +305,16 @@ export function ChalkboardProvider({ children }: { children: ReactNode }) {
   );
 
   const createThreadFromPrompt = useCallback(
-    (prompt: string, opts?: { model?: string; duration?: number }) => {
+    (
+      prompt: string,
+      opts?: {
+        model?: string;
+        duration?: number;
+        tier?: "tier1" | "tier2" | "tier3";
+        engine?: "auto" | "manim" | "remotion";
+        autoStart?: boolean;
+      }
+    ) => {
       const id = uid();
       const now = Date.now();
       const userMsg: ThreadMessage = {
@@ -315,6 +330,9 @@ export function ChalkboardProvider({ children }: { children: ReactNode }) {
         videos: [],
         model: opts?.model?.trim() || DEFAULT_LECTURE_MODEL,
         duration: opts?.duration,
+        tier: opts?.tier,
+        engine: opts?.engine,
+        autoStart: Boolean(opts?.autoStart),
         updatedAt: now,
       };
 
@@ -435,7 +453,11 @@ export function ChalkboardProvider({ children }: { children: ReactNode }) {
     async (
       threadId: string,
       promptOverride?: string,
-      opts?: { duration?: number }
+      opts?: {
+        duration?: number;
+        tier?: "tier1" | "tier2" | "tier3";
+        engine?: "auto" | "manim" | "remotion";
+      }
     ) => {
       const override = promptOverride?.trim();
       if (override) {
@@ -447,7 +469,6 @@ export function ChalkboardProvider({ children }: { children: ReactNode }) {
         setThreadPrompt(threadId, check.prompt);
       }
 
-      // Prefer live base state; fall back to optimistic view
       const live = baseThreads[threadId] ?? getThread(threadId);
       const userContent =
         override ||
@@ -463,6 +484,8 @@ export function ChalkboardProvider({ children }: { children: ReactNode }) {
       const model = live.model;
       const duration =
         opts && "duration" in opts ? opts.duration : live.duration;
+      const tier = opts?.tier ?? live.tier;
+      const engine = opts?.engine ?? live.engine ?? "auto";
 
       const videoId = uid();
       const placeholder: ThreadVideo = {
@@ -470,6 +493,8 @@ export function ChalkboardProvider({ children }: { children: ReactNode }) {
         title: "Starting…",
         createdAt: Date.now(),
         status: "queued",
+        etaDisplay: tier === "tier1" ? "~1–2 min" : "~2–3 min",
+        message: "Queued…",
       };
 
       const th = baseThreads[threadId] ?? getThread(threadId);
@@ -477,6 +502,7 @@ export function ChalkboardProvider({ children }: { children: ReactNode }) {
       const threadWithVideo = {
         ...th,
         videos: [placeholder, ...th.videos],
+        autoStart: false,
         updatedAt: Date.now(),
       };
       startTransition(() =>
@@ -493,7 +519,11 @@ export function ChalkboardProvider({ children }: { children: ReactNode }) {
       }
 
       try {
-        const data = await createLectureJob(messages, model, { duration });
+        const data = await createLectureJob(messages, model, {
+          duration,
+          tier,
+          engine,
+        });
         patchVideo(threadId, videoId, {
           jobId: data.job_id,
           title: shortJobTitle(data.job_id),
@@ -501,6 +531,9 @@ export function ChalkboardProvider({ children }: { children: ReactNode }) {
           videoUrl: data.video_url ?? undefined,
           cached: Boolean(data.cached),
           error: null,
+          message: data.message ?? null,
+          etaSeconds: data.eta_seconds ?? null,
+          etaDisplay: data.eta_display ?? null,
         });
 
         if (data.status === "completed") {
@@ -517,6 +550,10 @@ export function ChalkboardProvider({ children }: { children: ReactNode }) {
               videoUrl: st.video_url ?? undefined,
               error: st.error ?? null,
               cached: Boolean(st.cached),
+              message: st.message ?? null,
+              etaSeconds: st.eta_seconds ?? null,
+              etaDisplay: st.eta_display ?? null,
+              phase: st.phase ?? null,
             });
             if (st.status === "completed") {
               toast.success("Lecture ready");

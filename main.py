@@ -4,6 +4,7 @@ import os
 import time
 import uuid
 from collections import defaultdict, deque
+from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
@@ -22,6 +23,7 @@ from services.quota import (
     plan_wants_watermark,
 )
 from services.llm import DEFAULT_MODEL
+from services.quality_tiers import estimate_job, status_payload
 from services.storage_resolver import ResolvedStorage, resolve_job_storage
 from services.user_storage import UserStorageConfig
 from worker import process_topic_async
@@ -29,12 +31,26 @@ from worker import process_topic_async
 load_dotenv()
 
 _is_prod = os.getenv("CLARITY_ENV", "").lower() in {"vps", "prod", "production"}
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    try:
+        from services.latex_warmup import warmup_latex
+
+        await asyncio.to_thread(warmup_latex)
+    except Exception as exc:
+        print(f"  ⚠️ Startup warmup skipped: {exc}", flush=True)
+    yield
+
+
 app = FastAPI(
     title="manimotion Video API",
     version="1.0.0",
     docs_url=None if _is_prod else "/docs",
     redoc_url=None if _is_prod else "/redoc",
     openapi_url=None if _is_prod else "/openapi.json",
+    lifespan=lifespan,
 )
 
 _allowed = os.getenv("ALLOWED_ORIGINS", "*")
@@ -153,6 +169,7 @@ def _run_job(
     use_platform_storage: bool = False,
     watermark: bool = False,
     max_height: int = 1080,
+    tier: str | None = None,
 ):
     def status_cb(status: str, extra: dict):
         JOBS[job_id]["status"] = status
@@ -161,6 +178,7 @@ def _run_job(
 
     try:
         JOBS[job_id]["status"] = "processing"
+        JOBS[job_id].update(status_payload("processing", tier))
         result = asyncio.run(
             process_topic_async(
                 topic=topic,
@@ -174,6 +192,7 @@ def _run_job(
                 status_cb=status_cb,
                 watermark=watermark,
                 max_height=max_height,
+                tier=tier,
             )
         )
         if not result or not result.get("ok") or not result.get("video_url"):
@@ -211,12 +230,14 @@ def _enqueue(
     auth: dict | None = None,
     watermark_override: bool | None = None,
     max_height_override: int | None = None,
+    tier: str | None = None,
 ) -> JobCreateResponse:
     model = (model or DEFAULT_MODEL).strip() or DEFAULT_MODEL
     engine = (engine or "auto").strip().lower() or "auto"
     resolved = resolved or ResolvedStorage("platform", None)
     job_storage = resolved.config
     use_platform_storage = resolved.use_platform
+    est = estimate_job(tier)
 
     plan = str(auth.get("plan") or "FREE") if auth and auth.get("type") == "user" else "PRO"
     if auth and auth.get("type") == "user":
@@ -247,6 +268,10 @@ def _enqueue(
             "user_id": user_id,
             "api_key_id": api_key_id,
             "auth_type": (auth or {}).get("type", "master"),
+            "message": "Done!",
+            "eta_seconds": 0,
+            "eta_display": est["eta_display"],
+            "tier": est["tier"],
         }
         return JobCreateResponse(
             job_id=job_id,
@@ -254,9 +279,14 @@ def _enqueue(
             cached=True,
             video_url=hit["video_url"],
             engine=hit.get("engine"),
+            eta_seconds=0,
+            eta_display=est["eta_display"],
+            message="Done!",
+            tier=est["tier"],
         )
 
     job_id = str(uuid.uuid4())
+    queued_meta = status_payload("queued", tier)
     JOBS[job_id] = {
         "status": "queued",
         "video_url": None,
@@ -270,6 +300,7 @@ def _enqueue(
         "user_id": user_id,
         "api_key_id": api_key_id,
         "auth_type": (auth or {}).get("type", "master"),
+        **queued_meta,
     }
     asyncio.create_task(
         asyncio.to_thread(
@@ -284,9 +315,20 @@ def _enqueue(
             use_platform_storage,
             watermark,
             max_height,
+            tier,
         )
     )
-    return JobCreateResponse(job_id=job_id, status="queued", cached=False, video_url=None, engine=None)
+    return JobCreateResponse(
+        job_id=job_id,
+        status="queued",
+        cached=False,
+        video_url=None,
+        engine=None,
+        eta_seconds=est["eta_seconds"],
+        eta_display=est["eta_display"],
+        message=queued_meta["message"],
+        tier=est["tier"],
+    )
 
 
 def _authorize_job_access(job: dict, auth: dict | None):
@@ -364,6 +406,7 @@ async def request_video(req: VideoRequest, http_request: Request):
         auth=auth,
         watermark_override=req.watermark,
         max_height_override=req.max_height,
+        tier=req.tier,
     )
 
 
@@ -382,6 +425,11 @@ async def video_status(job_id: str, http_request: Request):
         cached=job.get("cached", False),
         engine=job.get("engine"),
         duration=job.get("duration"),
+        phase=job.get("phase"),
+        message=job.get("message"),
+        eta_seconds=job.get("eta_seconds"),
+        eta_display=job.get("eta_display"),
+        tier=job.get("tier"),
     )
 
 
