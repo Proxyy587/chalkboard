@@ -26,7 +26,7 @@ from prompts.remotion_prompt import (
 
 load_dotenv()
 _client = OpenRouter(api_key=os.getenv("OPENROUTER_API_KEY"))
-DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "anthropic/claude-3.5-sonnet")
+DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "google/gemini-2.5-flash")
 PLANNER_MODEL = os.getenv("PLANNER_MODEL", "openai/gpt-4o-mini")
 JUDGE_MODEL = os.getenv("JUDGE_MODEL", PLANNER_MODEL)
 

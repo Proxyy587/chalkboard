@@ -17,12 +17,31 @@ export type PlanDefinition = {
   maxResolution: "720p" | "1080p";
   watermark: boolean;
   apiAccess: boolean;
-  /** Models unlocked on this plan (and below). */
+  /** Short description of the model tier available on this plan. */
   modelTier: string;
+  /**
+   * OpenRouter model IDs available on this plan (cumulative — includes all
+   * models from lower tiers too).
+   */
+  models: string[];
   features: string[];
   dodoProductIdEnv: string;
   highlighted?: boolean;
 };
+
+const FREE_MODELS = [
+  "google/gemini-2.5-flash",
+  "google/gemini-2.0-flash-001",
+  "deepseek/deepseek-v3.2",
+];
+
+const HOBBY_MODELS = [
+  ...FREE_MODELS,
+  "openai/gpt-4o",
+  "anthropic/claude-3.5-sonnet",
+];
+
+const PRO_MODELS = [...HOBBY_MODELS, "anthropic/claude-opus-4"];
 
 export const PLANS: PlanDefinition[] = [
   {
@@ -37,12 +56,14 @@ export const PLANS: PlanDefinition[] = [
     maxResolution: "720p",
     watermark: true,
     apiAccess: true,
-    modelTier: "Fast models (DeepSeek, Gemini Flash)",
+    modelTier: "Gemini 2.5 Flash · DeepSeek V3.2",
+    models: FREE_MODELS,
     dodoProductIdEnv: "",
     features: [
       "3 renders / day",
+      "Gemini 2.5 Flash (default)",
+      "Gemini 2.0 Flash + DeepSeek V3.2",
       "API access (chalk_* keys)",
-      "Fast open models",
       "720p · watermark",
       "Low queue priority",
     ],
@@ -59,15 +80,18 @@ export const PLANS: PlanDefinition[] = [
     maxResolution: "1080p",
     watermark: false,
     apiAccess: true,
-    modelTier: "GPT-4o · Claude Sonnet",
+    modelTier: "GPT-4o · Claude 3.5 Sonnet",
+    models: HOBBY_MODELS,
     dodoProductIdEnv: "DODO_PRODUCT_HOBBY",
     highlighted: true,
     features: [
       "40 renders / month",
-      "GPT-4o & Claude Sonnet",
+      "GPT-4o unlocked",
+      "Claude 3.5 Sonnet unlocked (best Manim quality)",
+      "All Free models included",
       "1080p · no watermark",
-      "API access",
-      "Faster queue · commercial use",
+      "API access · commercial use",
+      "Faster queue",
     ],
   },
   {
@@ -82,12 +106,14 @@ export const PLANS: PlanDefinition[] = [
     maxResolution: "1080p",
     watermark: false,
     apiAccess: true,
-    modelTier: "Claude Opus · top-tier models",
+    modelTier: "Claude Opus 4 · all models",
+    models: PRO_MODELS,
     dodoProductIdEnv: "DODO_PRODUCT_PRO",
     features: [
       "80 renders / month",
-      "Claude Opus & top-tier models",
-      "Everything in Hobby",
+      "Claude Opus 4 unlocked (most capable)",
+      "All Hobby + Free models included",
+      "No watermark on all renders",
       "Priority queue",
       "Longer videos · higher concurrency",
     ],
@@ -123,7 +149,7 @@ export const PLAN_RANK: Record<PlanId, number> = {
 
 export function planAtLeast(
   userPlan: string | null | undefined,
-  required: PlanId
+  required: PlanId,
 ): boolean {
   const u = (userPlan?.toUpperCase() ?? "FREE") as PlanId;
   const userRank = PLAN_RANK[u] ?? 0;

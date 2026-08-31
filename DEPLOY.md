@@ -5,7 +5,6 @@
 
 This file focuses on the **Python video worker** (Docker / VPS).
 
-
 - **Manim** → math / physics / LaTeX / geometric animation
 - **Remotion** → charts / timelines / modern UI-style explainers
 
@@ -15,14 +14,14 @@ It auto-routes the prompt, renders video, adds TTS narration, uploads to Cloudfl
 
 ## 1. What you get (API)
 
-| Method | Path | Purpose |
-|--------|------|---------|
-| `GET` | `/health` | Health check |
-| `POST` | `/video/request` | Create a video job (recommended) |
-| `GET` | `/video/status/{job_id}` | Poll until complete |
-| `POST` | `/generate-lecture` | Legacy chalkboard-compatible endpoint |
-| `GET` | `/jobs/{job_id}` | Legacy status poll |
-| `GET` | `/docs` | Interactive Swagger UI |
+| Method | Path                     | Purpose                               |
+| ------ | ------------------------ | ------------------------------------- |
+| `GET`  | `/health`                | Health check                          |
+| `POST` | `/video/request`         | Create a video job (recommended)      |
+| `GET`  | `/video/status/{job_id}` | Poll until complete                   |
+| `POST` | `/generate-lecture`      | Legacy chalkboard-compatible endpoint |
+| `GET`  | `/jobs/{job_id}`         | Legacy status poll                    |
+| `GET`  | `/docs`                  | Interactive Swagger UI                |
 
 ### Create job
 
@@ -71,7 +70,7 @@ When done:
 
 `engine` can be forced: `"manim"` | `"remotion"` | `"auto"`.
 
-`model` defaults to `deepseek/deepseek-v3.2` if omitted.
+`model` defaults to `google/gemini-2.5-flash` if omitted.
 
 ---
 
@@ -82,7 +81,7 @@ Create a `.env` file (never commit secrets):
 ```env
 # LLM
 OPENROUTER_API_KEY=sk-or-...
-DEFAULT_MODEL=deepseek/deepseek-v3.2
+DEFAULT_MODEL=google/gemini-2.5-flash
 ROUTER_MODEL=openai/gpt-4o-mini
 PLANNER_MODEL=openai/gpt-4o-mini
 
@@ -120,9 +119,9 @@ MANIM_QUALITY=medium
 
 ### Where to get each value
 
-1. **OpenRouter key** → https://openrouter.ai/keys  
-2. **R2 bucket + tokens** → Cloudflare Dashboard → R2 → Create bucket → Manage R2 API Tokens  
-3. **Public base URL** → Enable public access / R2.dev subdomain or custom domain on the bucket  
+1. **OpenRouter key** → https://openrouter.ai/keys
+2. **R2 bucket + tokens** → Cloudflare Dashboard → R2 → Create bucket → Manage R2 API Tokens
+3. **Public base URL** → Enable public access / R2.dev subdomain or custom domain on the bucket
 4. **CLARITY_API_KEY** → any long random secret you invent for your frontend/backend
 5. **CLARITY_ENV** → `local` on your laptop, `vps` on the Azure/cloud box (deletes local videos after R2 upload)
 
@@ -131,16 +130,19 @@ MANIM_QUALITY=medium
 ## 3. Docker from scratch (local)
 
 ### A. Install Docker Desktop
+
 - Install Docker Desktop for Mac/Windows/Linux
 - Open it and wait until it says **Engine running**
 
 ### B. Verify
+
 ```bash
 docker version
 docker info
 ```
 
 ### C. Build
+
 From the project root (`manim-vid/`):
 
 ```bash
@@ -150,6 +152,7 @@ docker build -t clarity-video .
 First build takes **10–20 minutes** (TeX + Node + Chromium).
 
 ### D. Run
+
 ```bash
 docker run --rm -p 8000:8000 --env-file .env clarity-video
 ```
@@ -161,6 +164,7 @@ docker compose up --build
 ```
 
 ### E. Test
+
 ```bash
 curl http://localhost:8000/health
 open http://localhost:8000/docs
@@ -171,16 +175,19 @@ open http://localhost:8000/docs
 ## 4. Host online (VPS beginner path)
 
 ### A. Get a VPS
+
 Any Ubuntu 22.04+ VPS works (DigitalOcean, Hetzner, Linode, AWS Lightsail).
 
 Recommended: **4GB RAM / 2 vCPU** minimum (Manim + Remotion are heavy).
 
 ### B. SSH in
+
 ```bash
 ssh root@YOUR_VPS_IP
 ```
 
 ### C. Install Docker on the VPS
+
 ```bash
 curl -fsSL https://get.docker.com | sh
 sudo usermod -aG docker $USER
@@ -188,6 +195,7 @@ sudo usermod -aG docker $USER
 ```
 
 ### D. Clone & configure
+
 ```bash
 git clone https://github.com/YOUR_USER/manim-vid.git
 cd manim-vid
@@ -195,6 +203,7 @@ nano .env   # paste your env vars
 ```
 
 ### E. Build & run
+
 ```bash
 docker compose up -d --build
 docker logs -f clarity-video
@@ -239,6 +248,7 @@ Your public API base becomes:
 `https://video.yourdomain.com`
 
 ### G. Redeploy after code changes
+
 ```bash
 cd ~/manim-vid
 git pull
@@ -250,6 +260,7 @@ docker compose up -d --build
 ## 5. Host on Railway / Render (managed)
 
 ### Railway
+
 1. Push repo to GitHub
 2. New Project → Deploy from GitHub
 3. Select Dockerfile
@@ -258,6 +269,7 @@ docker compose up -d --build
 6. Copy the public URL
 
 ### Render
+
 1. New Web Service → connect GitHub
 2. Environment: Docker
 3. Add env vars
@@ -328,7 +340,7 @@ async function generateVideo(prompt: string) {
   for (let i = 0; i < 120; i++) {
     await new Promise((r) => setTimeout(r, 3000));
     const status = await fetch(
-      `${process.env.NEXT_PUBLIC_CLARITY_API_URL}/video/status/${jobId}`
+      `${process.env.NEXT_PUBLIC_CLARITY_API_URL}/video/status/${jobId}`,
     ).then((r) => r.json());
 
     if (status.status === "completed") return status.video_url;
@@ -394,14 +406,14 @@ manim-vid/
 
 ## 9. Common failures
 
-| Error | Fix |
-|-------|-----|
-| `docker.sock no such file` | Start Docker Desktop |
-| `lookup registry-1.docker.io` | Fix DNS/VPN; set Docker DNS to `8.8.8.8` |
-| `Dockerfile not found` | `cd` into project root before `docker build` |
-| R2 upload fails | Check endpoint has **no** `/bucket` suffix; verify keys |
-| Remotion fails in Docker | Ensure Chromium installed; `PUPPETEER_EXECUTABLE_PATH` set |
-| OpenRouter 401/403 | Rotate/replace `OPENROUTER_API_KEY` |
+| Error                         | Fix                                                        |
+| ----------------------------- | ---------------------------------------------------------- |
+| `docker.sock no such file`    | Start Docker Desktop                                       |
+| `lookup registry-1.docker.io` | Fix DNS/VPN; set Docker DNS to `8.8.8.8`                   |
+| `Dockerfile not found`        | `cd` into project root before `docker build`               |
+| R2 upload fails               | Check endpoint has **no** `/bucket` suffix; verify keys    |
+| Remotion fails in Docker      | Ensure Chromium installed; `PUPPETEER_EXECUTABLE_PATH` set |
+| OpenRouter 401/403            | Rotate/replace `OPENROUTER_API_KEY`                        |
 
 ---
 

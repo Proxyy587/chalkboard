@@ -2,7 +2,7 @@ import type { PlanId } from "@/lib/billing/plans";
 import { PLAN_RANK } from "@/lib/billing/plans";
 
 /** Matches `worker.DEFAULT_MODEL` / `schema.chat.ChatRequest`. */
-export const DEFAULT_LECTURE_MODEL = "anthropic/claude-3.5-sonnet";
+export const DEFAULT_LECTURE_MODEL = "google/gemini-2.5-flash";
 
 export type LectureModelOption = {
   id: string;
@@ -10,49 +10,61 @@ export type LectureModelOption = {
   hint: string;
   /** Minimum plan required to select this model. */
   minPlan: PlanId;
+  /** Short badge text shown in the selector, e.g. "Fastest". */
+  badge?: string;
 };
 
 /** OpenRouter-style ids with human labels for the selector. */
 export const LECTURE_MODELS: LectureModelOption[] = [
   {
-    id: "anthropic/claude-3.5-sonnet",
-    label: "Claude 3.5 Sonnet",
-    hint: "Reliable · Free+",
-    minPlan: "FREE",
-  },
-  {
     id: "google/gemini-2.5-flash",
     label: "Gemini 2.5 Flash",
     hint: "Fast · Free+",
     minPlan: "FREE",
+    badge: "Fastest",
   },
   {
     id: "google/gemini-2.0-flash-001",
     label: "Gemini 2.0 Flash",
     hint: "Quick · Free+",
     minPlan: "FREE",
+    badge: "Reliable",
   },
   {
     id: "deepseek/deepseek-v3.2",
     label: "DeepSeek V3.2",
     hint: "Fast · Free+",
     minPlan: "FREE",
+    badge: "Fast",
   },
   {
     id: "openai/gpt-4o",
     label: "GPT-4o",
     hint: "Balanced · Hobby+",
     minPlan: "HOBBY",
+    badge: "Balanced",
+  },
+  {
+    id: "anthropic/claude-3.5-sonnet",
+    label: "Claude 3.5 Sonnet",
+    hint: "Best Manim quality · Hobby+",
+    minPlan: "HOBBY",
+    badge: "Best quality",
   },
   {
     id: "anthropic/claude-opus-4",
     label: "Claude Opus 4",
-    hint: "Best quality · Pro",
+    hint: "Most capable · Pro",
     minPlan: "PRO",
+    badge: "Most capable",
   },
 ];
 
 export const LECTURE_MODEL_OPTIONS = LECTURE_MODELS.map((m) => m.id);
+
+export function allModels(): LectureModelOption[] {
+  return LECTURE_MODELS;
+}
 
 export function modelsForPlan(
   plan: string | null | undefined,
