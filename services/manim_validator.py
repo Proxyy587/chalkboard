@@ -89,6 +89,7 @@ def validate_manim_code(code: str) -> list[ValidationIssue]:
                     fix="Highlight whole MathTex with SurroundingRectangle",
                 )
             )
+        # self.wait(0) or self.wait(0.0) — NOT self.wait(0.5)
         if re.search(r"self\.wait\(\s*0(?:\.0+)?\s*\)", line):
             issues.append(
                 ValidationIssue(
@@ -98,7 +99,9 @@ def validate_manim_code(code: str) -> list[ValidationIssue]:
                     fix="Delete the wait line or use wait(0.1+)",
                 )
             )
-        if re.search(r"run_time\s*=\s*0(?:\.0+)?\b", line):
+        # run_time=0 or run_time=0.0 — must NOT match run_time=0.5, run_time=0.1, etc.
+        # Correct pattern: value is zero (integer or trailing zeros only, no non-zero digits after dot)
+        if re.search(r"run_time\s*=\s*(?:[-+]\s*)?0(?:\.0+)?(?![.0-9])", line):
             issues.append(
                 ValidationIssue(
                     severity="error",

@@ -24,8 +24,9 @@ TIER=1 (Simple / Template — reliability + speed first):
 - Max 3 MathTex on screen at once; prefer Write/FadeIn/Create/ReplacementTransform
 - TransformMatchingTex ONLY MathTex↔MathTex (else ReplacementTransform)
 - Max 1 always_redraw; Axes MUST set x_length/y_length
-- Progressive reveals with positive self.wait(0.5–1.5); never wait(0)
+- Every self.wait() >= 0.5; every run_time= >= 0.5; NEVER 0 or negative
 - End with a clear summary equation + SurroundingRectangle
+- get_riemann_rectangles MUST have input_sample_type="right"
 """,
     },
     "tier2": {
@@ -42,7 +43,9 @@ TIER=2 (Standard):
 - Target scene length 45–75s; max 8 beats
 - Max 5 ValueTrackers; max 3 always_redraw
 - TransformMatchingTex only MathTex↔MathTex
+- Every run_time= >= 0.5; every self.wait() >= 0.1; NEVER 0 or negative
 - Split layouts OK; keep safe zone; progressive pacing
+- get_riemann_rectangles MUST have input_sample_type="right"
 """,
     },
     "tier3": {
@@ -57,6 +60,8 @@ TIER=2 (Standard):
         "prompt_rules": """
 TIER=3 (Complex — still crash-safe):
 - Up to ~90–120s; still no get_part_by_tex; still no wait(0)
+- Every run_time= >= 0.5; NEVER run_time=0
+- get_riemann_rectangles MUST have input_sample_type="right"
 - Prefer clarity over density; warn: longer render
 """,
     },

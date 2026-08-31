@@ -36,43 +36,81 @@ def _strip_method_calls(code: str, method: str) -> str:
     return "".join(out)
 
 
-def _fix_nonpositive_timings(code: str) -> str:
-    def _as_float(raw: str) -> float | None:
-        try:
-            return float(raw)
-        except ValueError:
-            return None
+# Pre-compiled patterns for timing fixes (module-level avoids recompile + closure bugs)
+_WAIT_FULL_LINE = re.compile(
+    r"^([ \t]*)self\.wait\(\s*([-+]?[0-9]*\.?[0-9]+)\s*\)([ \t]*#.*)?\s*$"
+)
+_WAIT_INLINE = re.compile(r"self\.wait\(\s*([-+]?[0-9]*\.?[0-9]+)\s*\)")
+# Match run_time= followed by a number; use lookahead to reject anything followed by
+# more digits or a decimal point (so run_time=0.5 is NOT matched as "0").
+_RUN_TIME = re.compile(r"run_time\s*=\s*([-+]?[0-9]*\.?[0-9]+)")
 
+
+def _as_float(raw: str) -> float | None:
+    try:
+        return float(raw)
+    except ValueError:
+        return None
+
+
+def _clamp_wait_inline(mm: re.Match[str]) -> str:
+    val = _as_float(mm.group(1))
+    if val is not None and val <= 0:
+        return "self.wait(0.1)"
+    if val is not None and 0 < val < 0.05:
+        return "self.wait(0.1)"
+    return mm.group(0)
+
+
+def _clamp_run_time(mm: re.Match[str]) -> str:
+    val = _as_float(mm.group(1))
+    if val is not None and val <= 0:
+        return "run_time=0.5"
+    return mm.group(0)
+
+
+def _fix_nonpositive_timings(code: str, fixes: list[str]) -> str:
     out_lines: list[str] = []
-    wait_line = re.compile(
-        r"^([ \t]*)self\.wait\(\s*([-+]?[0-9]*\.?[0-9]+)\s*\)([ \t]*#.*)?\s*$"
-    )
+    dropped_waits = 0
+    clamped_waits = 0
+    clamped_runtimes = 0
+
     for line in code.splitlines(True):
-        m = wait_line.match(line.rstrip("\n"))
+        stripped = line.rstrip("\n")
+        # Handle standalone self.wait(N) lines — drop if N<=0, clamp if tiny
+        m = _WAIT_FULL_LINE.match(stripped)
         if m:
             val = _as_float(m.group(2))
             if val is not None and val <= 0:
-                continue
+                dropped_waits += 1
+                continue  # drop the line entirely
             if val is not None and val < 0.05:
                 comment = m.group(3) or ""
                 out_lines.append(f"{m.group(1)}self.wait(0.1){comment}\n")
+                clamped_waits += 1
                 continue
 
-        def clamp_wait(mm: re.Match[str]) -> str:
-            val = _as_float(mm.group(1))
-            if val is not None and val <= 0:
-                return "self.wait(0.1)"
-            return mm.group(0)
+        # Fix inline self.wait() calls within self.play(...) or similar
+        new_line = _WAIT_INLINE.sub(_clamp_wait_inline, line)
+        if new_line != line:
+            clamped_waits += 1
+        line = new_line
 
-        def clamp_run_time(mm: re.Match[str]) -> str:
-            val = _as_float(mm.group(1))
-            if val is not None and val <= 0:
-                return "run_time=0.5"
-            return mm.group(0)
+        # Fix run_time= — operates on the full number token so 0.5 is never mangled
+        new_line = _RUN_TIME.sub(_clamp_run_time, line)
+        if new_line != line:
+            clamped_runtimes += 1
+        line = new_line
 
-        line = re.sub(r"self\.wait\(\s*([-+]?[0-9]*\.?[0-9]+)\s*\)", clamp_wait, line)
-        line = re.sub(r"run_time\s*=\s*([-+]?[0-9]*\.?[0-9]+)", clamp_run_time, line)
         out_lines.append(line if line.endswith("\n") or line == "" else line + "\n")
+
+    if dropped_waits:
+        fixes.append(f"Removed {dropped_waits} self.wait(≤0) call(s)")
+    if clamped_waits:
+        fixes.append(f"Clamped {clamped_waits} self.wait() value(s) to 0.1+")
+    if clamped_runtimes:
+        fixes.append(f"Clamped {clamped_runtimes} run_time=0/negative to run_time=0.5")
+
     result = "".join(out_lines)
     if code and not code.endswith("\n") and result.endswith("\n"):
         result = result[:-1]
@@ -286,7 +324,7 @@ def sanitize_manim_code(
     code = ensure_manim_import(code, fixes)
     code = fix_scene_class_name(code, fixes)
     code = fix_get_parts_indexing(code, fixes)
-    code = _fix_nonpositive_timings(code)
+    code = _fix_nonpositive_timings(code, fixes)
     if force_safe_tmt:
         code = force_safe_transforms(code, fixes)
     else:

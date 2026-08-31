@@ -10,10 +10,12 @@ Generate complete runnable Manim Community Edition Python scripts ONLY.
 
 ## HARD TIMING RULES (crash if violated)
 - self.wait(t) requires t > 0. NEVER write self.wait(0), self.wait(0.0), or negative waits.
-- run_time= on play() must be > 0. NEVER run_time=0.
+- run_time= on play() must be > 0. NEVER run_time=0 or run_time=0.0.
 - If you are already at a beat boundary, skip the wait — do NOT emit wait(0).
 - Minimum useful wait is 0.1; typical waits are 0.5–2.0.
-- Minimum run_time is 0.3; typical run_time is 0.8–2.5.
+- Minimum run_time is 0.5; typical run_time is 0.8–2.5.
+- To show something "instantly", use run_time=0.5 (NOT 0). There is no such thing as run_time=0.
+- NEVER pass run_time as a variable that could be 0 — always use a literal >= 0.5.
 
 ═══════════════════════════════════════════
 ANTI-CRASH RULES (prevent 90% of failures)
@@ -123,10 +125,12 @@ COMPLEXITY: {complexity}
 BEAT SHEET (implement each beat in order with matching timing):
 {visual_plan}
 
-RULES REMINDER:
-- every self.wait(t) and run_time must be > 0
+CRITICAL RULES (violation causes immediate error):
+- run_time= MINIMUM 0.5. NEVER run_time=0 or run_time=0.0. If you want "instant", write run_time=0.5.
+- self.wait() MINIMUM 0.1. NEVER self.wait(0). If nothing to wait, omit the line.
 - TransformMatchingTex ONLY MathTex↔MathTex; else ReplacementTransform
-- no get_part_by_tex
+- No get_part_by_tex
+- input_sample_type="right" on every get_riemann_rectangles() call
 Return ONLY the complete Python script."""
 
 
@@ -134,7 +138,9 @@ MANIM_ERROR_HINTS = """
 Common fixes (apply ALL that match):
 - TransformMatchingTex AssertionError / tex_string: replace EVERY
   TransformMatchingTex with ReplacementTransform (Text/VGroup cannot use TMT).
-- wait/run_time <= 0: DELETE self.wait(0); use wait(0.1+) or omit. run_time >= 0.5.
+- wait/run_time <= 0: DELETE every self.wait(0) / self.wait(0.0) line entirely.
+  Replace every run_time=0 / run_time=0.0 with run_time=0.5.
+  There is NO valid zero-duration animation in Manim — omit the run_time kwarg instead.
 - next_to / NoneType: remove get_part_by_tex; SurroundingRectangle on whole MathTex
 - Object not in scene: FadeIn/Write/self.add before animate/next_to
 - Axes overflow: always set x_length/y_length; keep in safe zone
