@@ -127,6 +127,20 @@ def validate_manim_code(code: str) -> list[ValidationIssue]:
                 )
             )
 
+    for i, line in enumerate(lines, start=1):
+        if "get_riemann_rectangles" in line and "input_sample_type" not in line:
+            issues.append(
+                ValidationIssue(
+                    severity="warning",
+                    message=(
+                        f"Line {i}: get_riemann_rectangles() missing "
+                        'input_sample_type="right" — may raise ValueError'
+                    ),
+                    line=i,
+                    fix='Add input_sample_type="right" to the call',
+                )
+            )
+
     try:
         ast.parse(code)
     except SyntaxError as e:

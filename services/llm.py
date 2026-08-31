@@ -13,7 +13,10 @@ from prompts.manim_prompt import (
     MANIM_USER_TEMPLATE,
 )
 from prompts.narration_prompt import NARRATION_SYSTEM_PROMPT, NARRATION_USER_TEMPLATE
-from prompts.planner_prompt import VISUAL_PLANNER_SYSTEM_PROMPT, VISUAL_PLANNER_USER_TEMPLATE
+from prompts.planner_prompt import (
+    VISUAL_PLANNER_SYSTEM_PROMPT,
+    VISUAL_PLANNER_USER_TEMPLATE,
+)
 from prompts.quality_prompt import QUALITY_JUDGE_SYSTEM, build_quality_judge_prompt
 from prompts.remotion_prompt import (
     REMOTION_ERROR_HINTS,
@@ -23,7 +26,7 @@ from prompts.remotion_prompt import (
 
 load_dotenv()
 _client = OpenRouter(api_key=os.getenv("OPENROUTER_API_KEY"))
-DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "deepseek/deepseek-v3.2")
+DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "anthropic/claude-3.5-sonnet")
 PLANNER_MODEL = os.getenv("PLANNER_MODEL", "openai/gpt-4o-mini")
 JUDGE_MODEL = os.getenv("JUDGE_MODEL", PLANNER_MODEL)
 
@@ -35,7 +38,9 @@ def clean_code(code: str, language: str = "python") -> str:
         return code
 
     # Prefer fenced block contents when present (Remotion docs note models wrap ```tsx)
-    fence = re.search(r"```(?:python|typescript|tsx|ts|js|jsx)?\s*\n([\s\S]*?)```", code)
+    fence = re.search(
+        r"```(?:python|typescript|tsx|ts|js|jsx)?\s*\n([\s\S]*?)```", code
+    )
     if fence:
         code = fence.group(1).strip()
     else:
@@ -81,6 +86,7 @@ def sanitize_generated_code_with_fixes(
     from services.manim_sanitizer import sanitize_manim_code
 
     return sanitize_manim_code(code, force_safe_tmt=force_safe_tmt)
+
 
 def sanitize_remotion_code(code: str) -> str:
     """Light post-process for Remotion TSX from LLMs."""
@@ -135,8 +141,7 @@ def format_beat_sheet_for_prompt(plan: dict[str, Any]) -> str:
         end = beat.get("end_s")
         if start is not None and end is not None:
             lines.append(
-                f"--- BEAT {bid} @ {float(start):.1f}s–{float(end):.1f}s "
-                f"({dur}s) ---"
+                f"--- BEAT {bid} @ {float(start):.1f}s–{float(end):.1f}s ({dur}s) ---"
             )
             lines.append(f"START AT: {float(start):.1f}s")
             lines.append(f"HOLD FOR: {dur}s (until {float(end):.1f}s)")
@@ -328,9 +333,7 @@ def generate_manim_code(
         ],
     )
     raw = clean_code(response.choices[0].message.content, "python")
-    code, fixes = sanitize_generated_code_with_fixes(
-        raw, force_safe_tmt=force_safe_tmt
-    )
+    code, fixes = sanitize_generated_code_with_fixes(raw, force_safe_tmt=force_safe_tmt)
     if fixes:
         log(f"  🔧 Auto-fixed: {', '.join(fixes)}")
     if "from manim import" not in code:

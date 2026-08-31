@@ -286,9 +286,11 @@ TECHNIQUE 5: Area under curve with fill
   self.play(FadeIn(area), run_time=1.5)
 
 TECHNIQUE 6: Riemann Rectangles with animation
-  rects_4 = axes.get_riemann_rectangles(curve, x_range=[0,2], dx=0.5, color=BLUE)
-  rects_20 = axes.get_riemann_rectangles(curve, x_range=[0,2], dx=0.1, color=BLUE)
-  rects_100 = axes.get_riemann_rectangles(curve, x_range=[0,2], dx=0.02, color=BLUE)
+  # ALWAYS pass input_sample_type="right" (omitting it raises ValueError: Invalid input sample type)
+  # x_range MUST be within the axis x_range bounds
+  rects_4 = axes.get_riemann_rectangles(curve, x_range=[0,2], dx=0.5, color=BLUE, input_sample_type="right")
+  rects_20 = axes.get_riemann_rectangles(curve, x_range=[0,2], dx=0.1, color=BLUE, input_sample_type="right")
+  rects_100 = axes.get_riemann_rectangles(curve, x_range=[0,2], dx=0.02, color=BLUE, input_sample_type="right")
   self.play(Create(rects_4))
   self.wait(0.5)
   self.play(Transform(rects_4, rects_20))

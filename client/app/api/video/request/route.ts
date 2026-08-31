@@ -16,15 +16,6 @@ import {
   isModelAllowedForPlan,
 } from "@/lib/chalkboard-api";
 
-/**
- * Proxy to the Python video worker with quota enforcement.
- *
- * - Guest: 1 video / IP lifetime (atomic consume-before-proxy)
- * - Free account: 3 / UTC day
- * - Hobby/Pro: monthly renderCredits (Dodo)
- * - Owner email / master key: unlimited
- * - chalk_* keys: worker enforces by key plan
- */
 export async function POST(req: Request) {
   const session = await getSession();
   const user = session?.user ?? null;

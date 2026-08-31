@@ -235,6 +235,34 @@ def ensure_manim_import(code: str, fixes: list[str]) -> str:
     return code
 
 
+def fix_riemann_rectangles(code: str, fixes: list[str]) -> str:
+    """
+    Ensure every get_riemann_rectangles() call has input_sample_type="right".
+    Manim raises ValueError: Invalid input sample type when this arg is omitted
+    (the default in some versions is neither 'left', 'right', nor 'center').
+    """
+    # Match .get_riemann_rectangles( ... ) calls that are missing input_sample_type
+    pattern = re.compile(
+        r"(\.get_riemann_rectangles\s*\([^)]*)",
+        re.DOTALL,
+    )
+
+    def _add_sample_type(m: re.Match[str]) -> str:
+        body = m.group(1)
+        if "input_sample_type" in body:
+            return body  # already set — don't touch
+        # Append before the closing paren; strip trailing whitespace/comma first
+        stripped = body.rstrip()
+        if stripped.endswith(","):
+            return stripped + ' input_sample_type="right"'
+        return stripped + ', input_sample_type="right"'
+
+    new_code = pattern.sub(_add_sample_type, code)
+    if new_code != code:
+        fixes.append('Added input_sample_type="right" to get_riemann_rectangles()')
+    return new_code
+
+
 def sanitize_manim_code(
     code: str,
     *,
@@ -265,6 +293,7 @@ def sanitize_manim_code(
         code = fix_transform_matching_tex(code, fixes)
     code = fix_axes_sizing(code, fixes)
     code = fix_overflow_coordinates(code, fixes)
+    code = fix_riemann_rectangles(code, fixes)
 
     # DecimalNumber convenience
     new = re.sub(

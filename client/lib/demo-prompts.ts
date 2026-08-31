@@ -22,7 +22,7 @@ export const DEMO_PROMPTS: DemoPrompt[] = [
     n: "01",
     label: "Derivatives",
     prompt:
-      "Show how derivatives work with a moving tangent line on y=x^2. Keep it simple: axes, curve, sliding tangent, slope label, final formula d/dx[x^2]=2x.",
+      "Show how derivatives work with a moving tangent line on y=x^2. Draw axes with x_range=[−3,3] and y_range=[0,9], plot the parabola, add a dot that slides along it, draw its tangent line updating in real time, show the slope value changing. End with d/dx[x^2]=2x boxed.",
     tier: "tier1",
     engine: "manim",
     duration: 30,
@@ -32,7 +32,7 @@ export const DEMO_PROMPTS: DemoPrompt[] = [
     n: "02",
     label: "Integrals",
     prompt:
-      "Explain an integral as area under a curve using Riemann rectangles that get thinner, then show the exact area for ∫ from 0 to 2 of x^2 dx = 8/3.",
+      "Explain the integral as area under a curve. Draw axes with x_range=[0,3] and y_range=[0,9], plot y=x^2. Show 6 Riemann rectangles filling the area under the curve from x=0 to x=2, then shade the exact area in yellow. Show the formula ∫₀² x² dx = 8/3. Keep it simple — use only FadeIn, Create, Write animations.",
     tier: "tier1",
     engine: "manim",
     duration: 32,
@@ -42,7 +42,7 @@ export const DEMO_PROMPTS: DemoPrompt[] = [
     n: "03",
     label: "F = ma",
     prompt:
-      "Explain Newton's Second Law F=ma: color-code Force, mass, and acceleration, then show a block accelerating when a force is applied. End with the boxed formula.",
+      "Explain Newton's Second Law F=ma. Show a block on screen, display Force arrow in blue, mass label in yellow, acceleration arrow in green. Animate the block sliding right when force is applied. End with the boxed formula F=ma in the center.",
     tier: "tier1",
     engine: "manim",
     duration: 28,
@@ -52,7 +52,7 @@ export const DEMO_PROMPTS: DemoPrompt[] = [
     n: "04",
     label: "Euler's identity",
     prompt:
-      "Show why e^{iπ}+1=0 on the complex plane: unit circle, rotation by π, land on -1, then the identity. Keep visuals minimal and paced.",
+      "Show Euler's identity e^(iπ)+1=0 on the complex plane. Draw a unit circle, show a point rotating by π radians landing on −1, then reveal the full identity. Keep visuals minimal — 4 beats max.",
     tier: "tier1",
     engine: "manim",
     duration: 35,

@@ -102,6 +102,11 @@ After VGroup.arrange:
 6) NEVER self.wait(0) / run_time=0
 7) class Scene(Scene) only — not ThreeDScene for 2D explainers
 8) ASCII / LaTeX only in MathTex
+9) get_riemann_rectangles: ALWAYS use input_sample_type="right" (never "center" or "left"):
+   rects = axes.get_riemann_rectangles(graph, x_range=[0, 2], dx=0.25, input_sample_type="right")
+   Do NOT pass x_range values outside the axis x_range — this causes ValueError.
+10) area_under_curve / get_area: use axes.get_area(graph, x_range=[a, b]) only — no other args
+11) For Riemann approximations use a fixed small dx (0.25 to 0.5) — NOT a ValueTracker for n
 
 ## Pacing
 - 4–8 beats typical
@@ -134,4 +139,9 @@ Common fixes (apply ALL that match):
 - Object not in scene: FadeIn/Write/self.add before animate/next_to
 - Axes overflow: always set x_length/y_length; keep in safe zone
 - MathTex parse errors: simplify LaTeX; avoid f-strings with backslashes
+- ValueError: Invalid input sample type: replace EVERY get_riemann_rectangles call
+  with input_sample_type="right" explicitly:
+  rects = axes.get_riemann_rectangles(graph, x_range=[a, b], dx=0.25, input_sample_type="right")
+  Also ensure x_range=[a, b] values are within the axis x_range bounds.
+- AttributeError on get_area / area_under_curve: use axes.get_area(graph, x_range=[a, b])
 """

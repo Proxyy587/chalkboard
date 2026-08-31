@@ -2,7 +2,7 @@ import type { PlanId } from "@/lib/billing/plans";
 import { PLAN_RANK } from "@/lib/billing/plans";
 
 /** Matches `worker.DEFAULT_MODEL` / `schema.chat.ChatRequest`. */
-export const DEFAULT_LECTURE_MODEL = "deepseek/deepseek-v3.2";
+export const DEFAULT_LECTURE_MODEL = "anthropic/claude-3.5-sonnet";
 
 export type LectureModelOption = {
   id: string;
@@ -15,8 +15,14 @@ export type LectureModelOption = {
 /** OpenRouter-style ids with human labels for the selector. */
 export const LECTURE_MODELS: LectureModelOption[] = [
   {
-    id: "deepseek/deepseek-v3.2",
-    label: "DeepSeek V3.2",
+    id: "anthropic/claude-3.5-sonnet",
+    label: "Claude 3.5 Sonnet",
+    hint: "Reliable · Free+",
+    minPlan: "FREE",
+  },
+  {
+    id: "google/gemini-2.5-flash",
+    label: "Gemini 2.5 Flash",
     hint: "Fast · Free+",
     minPlan: "FREE",
   },
@@ -27,15 +33,15 @@ export const LECTURE_MODELS: LectureModelOption[] = [
     minPlan: "FREE",
   },
   {
+    id: "deepseek/deepseek-v3.2",
+    label: "DeepSeek V3.2",
+    hint: "Fast · Free+",
+    minPlan: "FREE",
+  },
+  {
     id: "openai/gpt-4o",
     label: "GPT-4o",
     hint: "Balanced · Hobby+",
-    minPlan: "HOBBY",
-  },
-  {
-    id: "anthropic/claude-3.5-sonnet",
-    label: "Claude 3.5 Sonnet",
-    hint: "Careful · Hobby+",
     minPlan: "HOBBY",
   },
   {
@@ -48,7 +54,9 @@ export const LECTURE_MODELS: LectureModelOption[] = [
 
 export const LECTURE_MODEL_OPTIONS = LECTURE_MODELS.map((m) => m.id);
 
-export function modelsForPlan(plan: string | null | undefined): LectureModelOption[] {
+export function modelsForPlan(
+  plan: string | null | undefined,
+): LectureModelOption[] {
   const p = (plan?.toUpperCase() ?? "FREE") as PlanId;
   const rank = PLAN_RANK[p] ?? 0;
   return LECTURE_MODELS.filter((m) => PLAN_RANK[m.minPlan] <= rank);
@@ -56,7 +64,7 @@ export function modelsForPlan(plan: string | null | undefined): LectureModelOpti
 
 export function isModelAllowedForPlan(
   modelId: string,
-  plan: string | null | undefined
+  plan: string | null | undefined,
 ): boolean {
   const m = LECTURE_MODELS.find((x) => x.id === modelId);
   if (!m) return false;
@@ -124,7 +132,9 @@ export function setStoredApiKey(key: string | null) {
 }
 
 function apiHeaders(): Record<string, string> {
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
   const key = getStoredApiKey();
   if (key) headers["x-api-key"] = key;
   return headers;
@@ -172,7 +182,7 @@ async function readApiError(res: Response): Promise<string> {
         .map((x) =>
           typeof x === "object" && x && "msg" in x
             ? String((x as { msg: string }).msg)
-            : String(x)
+            : String(x),
         )
         .join("; ");
     return res.statusText || `HTTP ${res.status}`;
@@ -189,11 +199,17 @@ export async function createLectureJob(
     duration?: number;
     tier?: "tier1" | "tier2" | "tier3";
     storage?: { integration_id?: string; inline?: Record<string, unknown> };
-  }
+  },
 ): Promise<JobCreateResponse> {
   const prompt =
-    [...messages].reverse().find((m) => m.role === "user")?.content?.trim() ||
-    messages.map((m) => m.content).join("\n").trim();
+    [...messages]
+      .reverse()
+      .find((m) => m.role === "user")
+      ?.content?.trim() ||
+    messages
+      .map((m) => m.content)
+      .join("\n")
+      .trim();
   if (!prompt) throw new Error("prompt is required");
 
   const body: Record<string, unknown> = {
@@ -222,7 +238,9 @@ export async function createLectureJob(
   }
 }
 
-export async function fetchJobStatus(jobId: string): Promise<JobStatusResponse> {
+export async function fetchJobStatus(
+  jobId: string,
+): Promise<JobStatusResponse> {
   const headers = apiHeaders();
   const res = await fetch(`/api/video/status/${encodeURIComponent(jobId)}`, {
     headers,

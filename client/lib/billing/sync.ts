@@ -6,8 +6,9 @@ function utcMonth(d = new Date()): string {
   return d.toISOString().slice(0, 7);
 }
 
-/** Map website User.plan → ApiKeyPlan enum cached on keys. */
-export function websitePlanToKeyPlan(plan: string | null | undefined): ApiKeyPlan {
+export function websitePlanToKeyPlan(
+  plan: string | null | undefined,
+): ApiKeyPlan {
   const p = (plan ?? "FREE").toUpperCase();
   if (p === "PRO") return "PRO";
   if (p === "HOBBY") return "STUDENT";
@@ -17,10 +18,9 @@ export function websitePlanToKeyPlan(plan: string | null | undefined): ApiKeyPla
   return "FREE";
 }
 
-/** Every active key for this account mirrors the account plan. */
 export async function syncApiKeysToAccountPlan(
   userId: string,
-  websitePlan: string
+  websitePlan: string,
 ) {
   await db.apiKey.updateMany({
     where: { userId, isActive: true, revokedAt: null },
@@ -68,7 +68,8 @@ export async function downgradeToFree(userId: string, status: string) {
 function digProductId(obj: unknown, depth = 0): string | undefined {
   if (!obj || typeof obj !== "object" || depth > 4) return undefined;
   const rec = obj as Record<string, unknown>;
-  if (typeof rec.product_id === "string" && rec.product_id) return rec.product_id;
+  if (typeof rec.product_id === "string" && rec.product_id)
+    return rec.product_id;
   if (Array.isArray(rec.product_cart) && rec.product_cart[0]) {
     const first = rec.product_cart[0];
     if (first && typeof first === "object") {

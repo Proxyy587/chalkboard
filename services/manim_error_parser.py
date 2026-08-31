@@ -107,6 +107,23 @@ def parse_manim_error(stderr: str) -> dict[str, Any]:
         )
         return result
 
+    if "Invalid input sample type" in text or (
+        "get_riemann_rectangles" in text and "ValueError" in text
+    ):
+        result.update(
+            {
+                "type": "ValueError",
+                "message": "Invalid input_sample_type in get_riemann_rectangles",
+                "fix_hint": (
+                    'Add input_sample_type="right" to EVERY get_riemann_rectangles() call. '
+                    "Example: axes.get_riemann_rectangles(graph, x_range=[0, 2], dx=0.25, "
+                    'input_sample_type="right"). Also verify the x_range values are within '
+                    "the Axes x_range bounds."
+                ),
+            }
+        )
+        return result
+
     val_match = re.search(r"ValueError: (.+?)(?:\n|$)", text)
     if val_match:
         result.update(
@@ -137,8 +154,14 @@ def parse_manim_error(stderr: str) -> dict[str, Any]:
 
 def _attribute_hint(obj_type: str, attr: str) -> str:
     hints = {
-        ("MathTex", "text"): "MathTex has no .text — use .tex_string or don't read text",
-        ("Text", "tex_string"): "Text has no .tex_string — use ReplacementTransform for Text",
+        (
+            "MathTex",
+            "text",
+        ): "MathTex has no .text — use .tex_string or don't read text",
+        (
+            "Text",
+            "tex_string",
+        ): "Text has no .tex_string — use ReplacementTransform for Text",
         ("Axes", "coords_to_point"): "Use axes.c2p(...) not .coords_to_point()",
         ("Axes", "point_to_coords"): "Use axes.p2c(...) not .point_to_coords()",
     }
@@ -148,7 +171,9 @@ def _attribute_hint(obj_type: str, attr: str) -> str:
     )
 
 
-def format_error_for_llm(error_info: dict[str, Any], previous_code: str | None = None) -> str:
+def format_error_for_llm(
+    error_info: dict[str, Any], previous_code: str | None = None
+) -> str:
     """Compact, actionable error block for generate_manim_code retries."""
     parts = [
         f"ERROR TYPE: {error_info.get('type', 'unknown')}",
@@ -158,7 +183,9 @@ def format_error_for_llm(error_info: dict[str, Any], previous_code: str | None =
     if error_info.get("line"):
         parts.append(f"Approx line: {error_info['line']}")
         if previous_code:
-            parts.append("CONTEXT:\n" + _section(previous_code, int(error_info["line"])))
+            parts.append(
+                "CONTEXT:\n" + _section(previous_code, int(error_info["line"]))
+            )
     # Keep traceback short
     full = (error_info.get("full_error") or "")[-1200:]
     if full:
